@@ -1,6 +1,8 @@
 # trivial
 
-Long running agents with conversational support from Codex / Gemini, made easy.
+This is a Claude Code plugin which you can conveniently install using the marketplace.
+
+It provides long running agents with conversational support from Codex / Gemini.
 
 ## Agents
 
