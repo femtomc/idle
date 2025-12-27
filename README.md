@@ -28,8 +28,8 @@ Multi-model development agents for Claude Code.
 ## Requirements
 
 - [tissue](https://github.com/femtomc/tissue) - Issue tracker (for `/work`, `/grind`, `/issue`)
-- [codex](https://github.com/openai/codex) - OpenAI CLI (for oracle/reviewer agents)
-- [gemini](https://github.com/google-gemini/generative-ai-cli) - Gemini CLI (for documenter agent)
+- [codex](https://github.com/openai/codex) - OpenAI coding agent (for oracle/reviewer agents)
+- [gemini-cli](https://github.com/google-gemini/gemini-cli) - Google Gemini CLI (for documenter agent)
 
 ## Installation
 
