@@ -1,1 +1,4 @@
 .tissue/
+.claude/plugins/trivial/librarian/
+.claude/plugins/trivial/reviewer/
+.claude/plugins/trivial/oracle/

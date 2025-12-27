@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-12-27
+
+### Added
+
+- `scripts/search.py` - BM25 search over agent artifacts (uses `uv run`)
+- Inter-agent communication via `.claude/plugins/trivial/{agent}/` directories
+- YAML frontmatter metadata in artifacts for conversation cross-referencing
+- Search capability documented in all reading agents (oracle, planner, reviewer, documenter)
+
+### Changed
+
+- Artifact storage moved from `/tmp/trivial/` to `.claude/plugins/trivial/`
+- Each agent writes to its own subdirectory (librarian/, reviewer/, oracle/)
+- Added `.claude/plugins/trivial/` subdirectories to .gitignore
+
 ## [0.3.0] - 2025-12-27
 
 ### Added

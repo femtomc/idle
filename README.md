@@ -19,7 +19,13 @@ The features are inspired by AmpCode, Anthropic's blog post on long running agen
 
 ### How it works
 
-trivial delegates tasks to the right model for the job. Fast, cheap models (haiku) handle search and exploration. Powerful models (opus) tackle complex reasoning. For critical decisions, opus agents consult external models—Codex for diverse perspectives, Gemini for documentation—creating a multi-model collaboration that catches blind spots no single model would.
+trivial delegates tasks to the right model for the job: fast models (haiku) handle search, while powerful models (opus) tackle reasoning. For critical decisions, opus agents consult external models—Codex and Gemini—to validate conclusions, mitigating the self-bias inherent in single-model workflows. This multi-model collaboration catches blind spots and ensures reliability that no single architecture can achieve alone.
+
+### Why Multi-Model?
+
+- **Self-Bias:** Single models favor their own outputs when self-evaluating. Cross-model review breaks this loop.
+- **Correlated Failures:** Different architectures have different blind spots—Claude, Codex, and Gemini together catch errors none would alone.
+- **Efficiency:** Fast models (haiku) handle bulk work; powerful models (opus) focus on high-leverage reasoning.
 
 See [docs/architecture.md](docs/architecture.md) for details.
 
