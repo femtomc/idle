@@ -9,7 +9,7 @@ Multi-model development agents for Claude Code.
 | `explorer` | haiku | Local codebase search and exploration |
 | `librarian` | haiku | Remote code research (GitHub, docs, APIs) |
 | `oracle` | opus | Deep reasoning with Codex dialogue |
-| `documenter` | opus | Technical writing with Gemini |
+| `documenter` | opus | Technical writing with Gemini 3 Flash |
 | `reviewer` | opus | Code review with Codex dialogue |
 | `planner` | opus | Design and issue tracker curation with Codex |
 
