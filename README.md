@@ -23,6 +23,7 @@ Multi-model development agents for Claude Code.
 | `/fmt` | Auto-detect and run project formatter |
 | `/test` | Auto-detect and run project tests |
 | `/review` | Run code review via reviewer agent |
+| `/plan` | Design discussion or backlog curation via planner agent |
 
 ### Loop Commands
 
