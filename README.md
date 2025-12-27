@@ -14,12 +14,19 @@ Multi-model development agents for Claude Code.
 
 ## Commands
 
+### Dev Commands
+
 | Command | Description |
 |---------|-------------|
 | `/work` | Pick an issue and work it to completion |
 | `/fmt` | Auto-detect and run project formatter |
 | `/test` | Auto-detect and run project tests |
 | `/review` | Run code review via reviewer agent |
+
+### Loop Commands
+
+| Command | Description |
+|---------|-------------|
 | `/loop <task>` | Iterative loop until task is complete |
 | `/grind [filter]` | Continuously work through issue tracker |
 | `/issue <id>` | Work on a specific tissue issue |
