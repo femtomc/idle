@@ -25,6 +25,65 @@ User → Claude Code → idle agents/commands
 - **External model integration**: Codex for diverse perspectives, Gemini for writing
 - **Orchestrator pattern**: Main agent delegates to implementor, preserving context
 
+## Control-Plane Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                           CONTROL PLANE                              │
+│                                                                      │
+│   ┌─────────────────────┐        ┌──────────────────────────────┐   │
+│   │      PLUGIN         │        │        CONTROLLER            │   │
+│   │  (Claude Code)      │        │     (future: idle CLI)       │   │
+│   │                     │        │                              │   │
+│   │  - Slash commands   │◄──────►│  - idle status               │   │
+│   │  - Stop/PreToolUse  │  jwz   │  - idle tui (future)         │   │
+│   │    hooks            │        │  - Observability             │   │
+│   │  - Agent dispatch   │        │  - External monitoring       │   │
+│   └─────────────────────┘        └──────────────────────────────┘   │
+│                                                                      │
+│                              ▼                                       │
+│                           [ jwz ]                                    │
+│                     (state + messaging)                              │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+The idle architecture is moving towards a hybrid model:
+
+- **Plugin**: Embedded in Claude Code. Provides slash commands (/loop, /issue, /grind), hooks (Stop hook for loop continuation), and agent dispatch.
+- **Controller** (future): Separate binary. Provides `idle status` for observability, `idle tui` for interactive control. Reads state from jwz.
+- **jwz**: The shared state layer. Both plugin and controller read/write to jwz topics (loop:current, loop:anchor, etc.).
+- This separation allows external tools to observe and control loops without being inside Claude Code.
+
+## idle status Command
+
+The `idle status` command (implemented by the future controller) queries jwz for current loop state:
+
+```bash
+idle status
+# Output:
+# Loop: issue
+# Iteration: 3/10
+# Issue: auth-123
+# Worktree: .worktrees/idle/auth-123
+# Updated: 2 minutes ago
+
+idle status --json
+# Output:
+# {"mode":"issue","iteration":3,"max":10,"issue_id":"auth-123",...}
+```
+
+Implementation:
+```bash
+# Query loop:current topic
+STATE=$(jwz read "loop:current" | tail -1)
+echo "$STATE" | jq -r '.stack[-1]'
+```
+
+Use cases:
+- Check if a loop is stuck
+- Monitor progress from outside Claude
+- Script automation around loop state
+
 ## Plugin Configuration
 
 ### Directory Structure
@@ -243,10 +302,35 @@ main repo/                          .worktrees/idle/
 
 ### Lifecycle
 
-1. **Create**: `/issue <id>` creates worktree at `.worktrees/idle/<id>/`
-2. **Work**: Implementor uses absolute paths, Bash commands cd to worktree
-3. **Complete**: Worktree persists for review after issue completes
-4. **Land**: `/land <id>` merges branch to main and cleans up
+1. **Create** (`/issue <id>`):
+   - Creates worktree at `.worktrees/idle/<id>/`
+   - Creates branch `idle/issue/<id>` from base ref
+   - Stores worktree path in jwz loop state
+   - Ensures `.worktrees/` is gitignored
+
+2. **Work**:
+   - Stop hook injects worktree context on each iteration
+   - All file operations use absolute paths under worktree
+   - tissue commands run from main repo (not worktree)
+
+3. **Complete**:
+   - Issue emits `<issue-complete>DONE</issue-complete>`
+   - Worktree PERSISTS for review (not auto-deleted)
+   - User can inspect changes before landing
+
+4. **Land** (`/land <id>`):
+   - Validates worktree is clean
+   - Attempts fast-forward merge to main
+   - Removes worktree and branch on success
+   - Updates tissue status to closed
+
+5. **Remove** (`/worktree remove <id>`):
+   - Removes worktree without merging
+   - Use for abandoned work or when changes already landed
+
+6. **Prune** (`/worktree prune`):
+   - Cleans up orphaned worktrees (directory deleted but git still tracks)
+   - Handles case-insensitive filesystem collisions
 
 ### Commands
 

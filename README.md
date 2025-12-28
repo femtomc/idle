@@ -53,7 +53,20 @@ See [docs/architecture.md](docs/architecture.md) for details.
 | `/loop <task>` | Iterative loop until task is complete |
 | `/grind [filter]` | Continuously work through issue tracker |
 | `/issue <id>` | Work on a specific tissue issue |
+| `/land <id>` | Merge a completed issue worktree |
 | `/cancel-loop` | Cancel the active loop |
+
+## Worktrees
+
+idle uses git worktrees to enable parallel work. Each issue gets its own isolated environment:
+
+- **Isolation:** Changes happen in `.worktrees/idle/<issue-id>/`
+- **Parallelism:** You can have multiple agents working on different issues simultaneously
+- **Workflow:**
+    1. `/issue <id>` creates/switches to a worktree
+    2. Agents work in that directory
+    3. `/land <id>` merges changes back to main and removes the worktree
+    4. `/worktree` command helps manage orphaned trees
 
 ## Requirements
 
@@ -160,6 +173,19 @@ tissue new "Refactor database queries" -p 2 -t tech-debt
 # → oracle agent analyzes with external dialogue, provides recommendation
 ```
 
+## Observability
+
+Monitor your agent loops:
+
+- `idle status` - Show human-readable status of the current loop
+- `idle status --json` - Machine-readable output for tooling
+
+## Roadmap
+
+- **Phase 1 (Current):** Bash scripts + Claude Plugin architecture.
+- **Phase 2:** Rewrite core logic in Zig for performance and reliability.
+- **Phase 3:** Terminal User Interface (TUI) for interactive loop management.
+
 ## Troubleshooting
 
 ### tissue: command not found
@@ -213,6 +239,34 @@ If `/work` or `/grind` reports no issues:
 1. Ensure you're in a directory with a `.tissue` folder
 2. Run `tissue list` to see available issues
 3. Run `tissue init` to create a new issue tracker
+
+### Zombie loops
+
+State exists in jwz but Claude is not running.
+
+**Symptoms:** `idle status` shows an active loop but no Claude process is running.
+
+**Fix:**
+```shell
+IDLE_LOOP_DISABLE=1 claude  # Bypass loop hook
+```
+
+Or reset all state:
+```shell
+rm -rf .jwz/
+```
+
+### Worktree conflicts
+
+Case-insensitive filesystem collisions on macOS/Windows.
+
+**Symptoms:** Issue IDs `ABC` and `abc` create conflicting worktrees. Or orphaned worktrees (directory deleted but git still tracks it).
+
+**Fix:**
+```shell
+/worktree prune         # Via idle
+git worktree prune      # Or directly
+```
 
 ## License
 
