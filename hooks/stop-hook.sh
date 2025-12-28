@@ -4,6 +4,31 @@
 
 set -e
 
+# Lock file for protecting concurrent jwz operations
+LOCK_FILE="${TMPDIR:-/tmp}/idle-loop.lock"
+
+# Acquire lock with timeout (10 seconds)
+acquire_lock() {
+    local max_wait=100
+    local waited=0
+    while [[ $waited -lt $max_wait ]]; do
+        if mkdir "$LOCK_FILE" 2>/dev/null; then
+            return 0
+        fi
+        sleep 0.1
+        waited=$((waited + 1))
+    done
+    return 1  # Failed to acquire lock
+}
+
+# Release lock
+release_lock() {
+    rmdir "$LOCK_FILE" 2>/dev/null || true
+}
+
+# Ensure lock is released on any exit (signal or script failure)
+trap 'release_lock' EXIT
+
 # Read hook input from stdin
 INPUT=$(cat)
 
@@ -27,8 +52,15 @@ STATE_FILE=".claude/idle-loop.local.md"
 # Try to read loop state from jwz first
 STATE=""
 if command -v jwz >/dev/null 2>&1 && [[ -d .jwz ]]; then
-    # Get the latest message from loop:current topic
-    STATE=$(jwz read "loop:current" 2>/dev/null | tail -1 || true)
+    # Acquire lock before reading jwz state
+    if acquire_lock; then
+        # Get the latest message from loop:current topic
+        STATE=$(jwz read "loop:current" 2>/dev/null | tail -1 || true)
+        release_lock
+    else
+        # Lock acquisition failed - wait briefly and try fallback
+        echo "Warning: Could not acquire lock on jwz state, using fallback" >&2
+    fi
 fi
 
 # Parse state (either from jwz JSON or fallback to state file)
@@ -104,7 +136,11 @@ fi
 if ! [[ "$ITERATION" =~ ^[0-9]+$ ]] || ! [[ "$MAX_ITERATIONS" =~ ^[0-9]+$ ]]; then
     echo "Warning: Corrupted loop state, cleaning up" >&2
     if [[ "$USE_JWZ" == "true" ]]; then
-        jwz post "loop:current" -m '{"schema":1,"event":"ABORT","stack":[]}'
+        # Acquire lock before writing state
+        if acquire_lock; then
+            jwz post "loop:current" -m '{"schema":1,"event":"ABORT","stack":[]}'
+            release_lock
+        fi
     else
         rm -f "$STATE_FILE"
     fi
@@ -114,7 +150,11 @@ fi
 # Check if max iterations reached
 if [[ $ITERATION -ge $MAX_ITERATIONS ]]; then
     if [[ "$USE_JWZ" == "true" ]]; then
-        jwz post "loop:current" -m '{"schema":1,"event":"DONE","reason":"MAX_ITERATIONS","stack":[]}'
+        # Acquire lock before writing state
+        if acquire_lock; then
+            jwz post "loop:current" -m '{"schema":1,"event":"DONE","reason":"MAX_ITERATIONS","stack":[]}'
+            release_lock
+        fi
     else
         rm -f "$STATE_FILE"
     fi
@@ -126,46 +166,46 @@ COMPLETION_FOUND=false
 COMPLETION_REASON=""
 
 if [[ -n "$TRANSCRIPT_PATH" ]] && [[ -f "$TRANSCRIPT_PATH" ]]; then
-    # Get last assistant message
-    LAST_MESSAGE=$(tail -20 "$TRANSCRIPT_PATH" | \
-        jq -r 'select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text' 2>/dev/null | \
-        tail -1 || true)
+    # Get last assistant message using slurp mode to handle long transcripts
+    # Load entire file at once and find the last assistant message reliably
+    LAST_MESSAGE=$(jq -r -Rs 'split("\n") | .[] | select(length > 0) | fromjson? | select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text' "$TRANSCRIPT_PATH" 2>/dev/null | tail -1 || true)
 
     # Check for completion signals based on mode
-    # Use printf instead of echo to handle arbitrary data safely
+    # Only match completion markers at the start of a line (not indented or in code blocks)
+    # Use grep with ^ anchor to reject indented markers in code blocks
     case "$MODE" in
         loop)
-            if printf '%s' "$LAST_MESSAGE" | grep -qF -- '<loop-done>COMPLETE</loop-done>'; then
+            if printf '%s' "$LAST_MESSAGE" | grep -qE '^<loop-done>COMPLETE</loop-done>$'; then
                 COMPLETION_FOUND=true
                 COMPLETION_REASON="COMPLETE"
-            elif printf '%s' "$LAST_MESSAGE" | grep -qF -- '<loop-done>MAX_ITERATIONS</loop-done>'; then
+            elif printf '%s' "$LAST_MESSAGE" | grep -qE '^<loop-done>MAX_ITERATIONS</loop-done>$'; then
                 COMPLETION_FOUND=true
                 COMPLETION_REASON="MAX_ITERATIONS"
-            elif printf '%s' "$LAST_MESSAGE" | grep -qF -- '<loop-done>STUCK</loop-done>'; then
+            elif printf '%s' "$LAST_MESSAGE" | grep -qE '^<loop-done>STUCK</loop-done>$'; then
                 COMPLETION_FOUND=true
                 COMPLETION_REASON="STUCK"
             fi
             ;;
         issue)
-            if printf '%s' "$LAST_MESSAGE" | grep -qF -- '<loop-done>COMPLETE</loop-done>'; then
+            if printf '%s' "$LAST_MESSAGE" | grep -qE '^<loop-done>COMPLETE</loop-done>$'; then
                 COMPLETION_FOUND=true
                 COMPLETION_REASON="COMPLETE"
-            elif printf '%s' "$LAST_MESSAGE" | grep -qF -- '<loop-done>MAX_ITERATIONS</loop-done>'; then
+            elif printf '%s' "$LAST_MESSAGE" | grep -qE '^<loop-done>MAX_ITERATIONS</loop-done>$'; then
                 COMPLETION_FOUND=true
                 COMPLETION_REASON="MAX_ITERATIONS"
-            elif printf '%s' "$LAST_MESSAGE" | grep -qF -- '<loop-done>STUCK</loop-done>'; then
+            elif printf '%s' "$LAST_MESSAGE" | grep -qE '^<loop-done>STUCK</loop-done>$'; then
                 COMPLETION_FOUND=true
                 COMPLETION_REASON="STUCK"
-            elif printf '%s' "$LAST_MESSAGE" | grep -qF -- '<issue-complete>DONE</issue-complete>'; then
+            elif printf '%s' "$LAST_MESSAGE" | grep -qE '^<issue-complete>DONE</issue-complete>$'; then
                 COMPLETION_FOUND=true
                 COMPLETION_REASON="COMPLETE"
             fi
             ;;
         grind)
-            if printf '%s' "$LAST_MESSAGE" | grep -qF -- '<grind-done>NO_MORE_ISSUES</grind-done>'; then
+            if printf '%s' "$LAST_MESSAGE" | grep -qE '^<grind-done>NO_MORE_ISSUES</grind-done>$'; then
                 COMPLETION_FOUND=true
                 COMPLETION_REASON="NO_MORE_ISSUES"
-            elif printf '%s' "$LAST_MESSAGE" | grep -qF -- '<grind-done>MAX_ISSUES</grind-done>'; then
+            elif printf '%s' "$LAST_MESSAGE" | grep -qE '^<grind-done>MAX_ISSUES</grind-done>$'; then
                 COMPLETION_FOUND=true
                 COMPLETION_REASON="MAX_ISSUES"
             fi
@@ -177,19 +217,23 @@ fi
 # If completion signal found, clean up and allow exit
 if [[ "$COMPLETION_FOUND" == "true" ]]; then
     if [[ "$USE_JWZ" == "true" ]]; then
-        # Pop the completed frame from stack
-        NEW_STACK=$(echo "$STATE" | jq '.stack[:-1]')
-        STACK_LEN=$(echo "$NEW_STACK" | jq 'length')
+        # Acquire lock before modifying state
+        if acquire_lock; then
+            # Pop the completed frame from stack
+            NEW_STACK=$(echo "$STATE" | jq '.stack[:-1]')
+            STACK_LEN=$(echo "$NEW_STACK" | jq 'length')
 
-        if [[ "$STACK_LEN" == "0" ]]; then
-            # All loops complete
-            jwz post "loop:current" -m "{\"schema\":1,\"event\":\"DONE\",\"reason\":\"$COMPLETION_REASON\",\"stack\":[]}"
-        else
-            # Pop frame, continue outer loop
-            NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-            jwz post "loop:current" -m "{\"schema\":1,\"event\":\"STATE\",\"run_id\":\"$RUN_ID\",\"updated_at\":\"$NOW\",\"stack\":$NEW_STACK}"
-            # Don't exit - let outer loop continue
-            # Actually, for now we allow exit and let the outer loop re-invoke
+            if [[ "$STACK_LEN" == "0" ]]; then
+                # All loops complete
+                jwz post "loop:current" -m "{\"schema\":1,\"event\":\"DONE\",\"reason\":\"$COMPLETION_REASON\",\"stack\":[]}"
+            else
+                # Pop frame, continue outer loop
+                NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+                jwz post "loop:current" -m "{\"schema\":1,\"event\":\"STATE\",\"run_id\":\"$RUN_ID\",\"updated_at\":\"$NOW\",\"stack\":$NEW_STACK}"
+                # Don't exit - let outer loop continue
+                # Actually, for now we allow exit and let the outer loop re-invoke
+            fi
+            release_lock
         fi
     else
         rm -f "$STATE_FILE"
@@ -204,11 +248,15 @@ NEW_ITERATION=$((ITERATION + 1))
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 if [[ "$USE_JWZ" == "true" ]]; then
-    # Update top of stack with new iteration
-    NEW_STACK=$(echo "$STATE" | jq --argjson iter "$NEW_ITERATION" '.stack[-1].iter = $iter')
-    jwz post "loop:current" -m "{\"schema\":1,\"event\":\"STATE\",\"run_id\":\"$RUN_ID\",\"updated_at\":\"$NOW\",\"stack\":$(echo "$NEW_STACK" | jq -c '.stack')}"
+    # Acquire lock before updating state
+    if acquire_lock; then
+        # Update top of stack with new iteration
+        NEW_STACK=$(echo "$STATE" | jq --argjson iter "$NEW_ITERATION" '.stack[-1].iter = $iter')
+        jwz post "loop:current" -m "{\"schema\":1,\"event\":\"STATE\",\"run_id\":\"$RUN_ID\",\"updated_at\":\"$NOW\",\"stack\":$(echo "$NEW_STACK" | jq -c '.stack')}"
+        release_lock
+    fi
 else
-    # Update state file
+    # Update state file (atomic via temp + mv)
     TEMP_FILE=$(mktemp)
     sed "s/^iteration: .*/iteration: $NEW_ITERATION/" "$STATE_FILE" > "$TEMP_FILE"
     mv "$TEMP_FILE" "$STATE_FILE"
