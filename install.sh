@@ -154,16 +154,40 @@ main() {
     success "Dependencies installed!"
     printf "\n"
 
-    # Install the Claude Code plugin
+    # Install or update the Claude Code plugin
     if check_command claude; then
-        info "Installing idle plugin..."
+        info "Setting up idle plugin..."
+
+        # Add marketplace (idempotent)
         claude plugin marketplace add evil-mind-evil-sword/marketplace 2>/dev/null || true
-        if claude plugin install idle@emes 2>/dev/null; then
-            success "idle plugin installed!"
+
+        # Refresh marketplace to get latest versions
+        info "Refreshing marketplace..."
+        claude plugin marketplace refresh 2>/dev/null || true
+
+        # Check if already installed
+        if claude plugin list 2>/dev/null | grep -q "idle@emes"; then
+            info "Updating idle plugin..."
+            if claude plugin update idle@emes 2>/dev/null; then
+                success "idle plugin updated!"
+            else
+                # Fallback: reinstall
+                claude plugin uninstall idle@emes 2>/dev/null || true
+                if claude plugin install idle@emes 2>/dev/null; then
+                    success "idle plugin reinstalled!"
+                else
+                    warn "Plugin update failed. Try manually: /plugin update idle@emes"
+                fi
+            fi
         else
-            warn "Plugin install failed. Try manually in Claude Code:"
-            printf "  ${GREEN}/plugin marketplace add evil-mind-evil-sword/marketplace${NC}\n"
-            printf "  ${GREEN}/plugin install idle@emes${NC}\n"
+            info "Installing idle plugin..."
+            if claude plugin install idle@emes 2>/dev/null; then
+                success "idle plugin installed!"
+            else
+                warn "Plugin install failed. Try manually in Claude Code:"
+                printf "  ${GREEN}/plugin marketplace add evil-mind-evil-sword/marketplace${NC}\n"
+                printf "  ${GREEN}/plugin install idle@emes${NC}\n"
+            fi
         fi
     else
         warn "claude CLI not found. Install the plugin manually in Claude Code:"
