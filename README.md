@@ -10,6 +10,18 @@ A runtime that orchestrates long-running autonomous workflows where agents colla
 - **Loop:** Enables agents to break out of single-turn interactions to perform continuous iterative work.
 - **Consensus:** Mitigates LLM self-bias and hallucinations by requiring agreement between distinct models (or fresh contexts) before committing to critical paths.
 
+## Install
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/evil-mind-evil-sword/idle/main/install.sh | sh
+```
+
+Then in Claude Code:
+```
+/plugin marketplace add evil-mind-evil-sword/marketplace
+/plugin install idle@emes
+```
+
 ## Agents
 
 | Agent | Model | Second Opinion | Description |
@@ -24,7 +36,7 @@ A runtime that orchestrates long-running autonomous workflows where agents colla
 
 idle acts as an "outer harness" for Claude Code that orchestrates specialized agents within a continuous loop. Fast agents handle information retrieval, while reasoning agents drive the core logic. To prevent error propagation, the harness enforces a consensus mechanism for high-stakes decisions.
 
-When the primary agent proposes a critical action, the harness pauses execution to consult a secondary model. If an external model (Codex, Gemini) is available, it provides an independent perspective. If not, the harness falls back to `claude -p`, creating a fresh context to break the self-refinement loop. This ensures that the agentic loop proceeds only when there is consensus on the path forward.
+When the primary agent proposes a critical action, the harness pauses execution to consult a secondary model. If an external model (Codex, Gemini) is available, it provides an independent perspective. If not, the harness falls back to `claude -p`, creating a fresh context to break the self-refinement loop.
 
 ### Why Consensus?
 
@@ -84,29 +96,6 @@ idle uses git worktrees to enable parallel work. Each issue gets its own isolate
 - [gemini-cli](https://github.com/google-gemini/gemini-cli) - Google Gemini CLI → used by documenter
 
 When these are not installed, agents fall back to `claude -p` for second opinions.
-
-## Installation
-
-### Quick install
-
-Install dependencies first:
-
-```shell
-curl -fsSL https://raw.githubusercontent.com/femtomc/idle/main/install.sh | sh
-```
-
-Then in Claude Code:
-
-```
-/plugin marketplace add femtomc/idle
-/plugin install idle@idle
-```
-
-### For development
-
-```shell
-claude --plugin-dir /path/to/idle
-```
 
 ## Quickstart
 
