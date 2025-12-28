@@ -12,11 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Stop hook for loop commands** - Self-referential iteration via Claude Code hooks
-- `hooks/hooks.json` and `hooks/stop-hook.sh` for loop continuation logic
+- **PreToolUse hook** - Safety guardrails blocking destructive git/bash commands
+- **PreCompact hook** - Recovery anchor persisted to `loop:anchor` before compaction
+- `hooks/hooks.json` and hook scripts for loop, safety, and recovery
 - Loop state stored via jwz messaging (`loop:current` topic) with JSON schema
 - Stack-based nested loop model (grind → issue)
 - TTL-based staleness detection (2 hour timeout prevents zombie loops)
 - Environment variable escape hatch: `TRIVIAL_LOOP_DISABLE=1`
+- Hooks philosophy documented: "pull over push", "safety over policy", "pointer over payload"
 
 ### Changed
 

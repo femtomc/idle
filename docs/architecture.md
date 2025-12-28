@@ -55,7 +55,9 @@ trivial/
 │       └── loop.md
 ├── hooks/               # Claude Code hooks
 │   ├── hooks.json       # Hook configuration
-│   └── stop-hook.sh     # Loop continuation logic
+│   ├── stop-hook.sh     # Loop continuation logic
+│   ├── pre-tool-use-hook.sh  # Safety guardrails
+│   └── pre-compact-hook.sh   # Recovery anchor
 └── docs/
     └── architecture.md
 ```
@@ -219,6 +221,58 @@ If you get stuck in an infinite loop:
 1. `/cancel-loop` - Graceful cancellation via command
 2. `TRIVIAL_LOOP_DISABLE=1 claude` - Environment variable bypass
 3. `rm -rf .jwz/` - Manual reset of all messaging state
+
+## Hooks Philosophy
+
+trivial uses a **minimal hooks strategy** to avoid context bloat:
+
+- **Pull over push** - Let Claude fetch state on-demand via jwz/tissue/git
+- **Safety over policy** - Hooks prevent damage; commands enforce workflows
+- **Pointer over payload** - Emit locations, not full content
+
+### Active Hooks
+
+| Hook | Purpose | Output |
+|------|---------|--------|
+| **Stop** | Loop continuation | Block + re-inject prompt |
+| **PreToolUse** | Safety guardrails | Block only on dangerous ops |
+| **PreCompact** | Recovery anchor | Single-line pointer to jwz |
+
+### PreToolUse (Safety)
+
+Blocks destructive Bash commands before execution:
+
+- `git push --force` to main/master
+- `git reset --hard`
+- `rm -rf /` or home directory
+- `drop database` commands
+
+Silent when allowing - no context consumed for safe operations.
+
+### PreCompact (Recovery)
+
+Before context compaction, persists current task state to `loop:anchor` topic:
+
+```json
+{
+  "goal": "Working on issue: auth-123",
+  "mode": "issue",
+  "iteration": "3/10",
+  "progress": "Recent commits: abc123; def456",
+  "next_step": "Continue working on the task"
+}
+```
+
+Emits single line: `"TRIVIAL: Recovery anchor saved. After compaction: jwz read loop:anchor"`
+
+### Hooks We Don't Use
+
+| Hook | Why Silent |
+|------|-----------|
+| SessionStart | Claude pulls state on-demand |
+| UserPromptSubmit | Belongs in commands, not hooks |
+| PostToolUse | Updates go to jwz quietly |
+| SubagentStop | Agents produce structured summaries |
 
 ## External Model Integration
 

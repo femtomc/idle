@@ -1,10 +1,27 @@
 {
-  "description": "trivial plugin hooks for self-referential loop commands",
+  "description": "trivial plugin hooks - loops, safety, and recovery",
   "hooks": {
     "Stop": [
       {
         "type": "command",
         "command": "${CLAUDE_PLUGIN_ROOT}/hooks/stop-hook.sh"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use-hook.sh"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact-hook.sh"
       }
     ]
   }
