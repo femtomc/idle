@@ -110,33 +110,33 @@ install_jwz() {
 }
 
 check_optional_deps() {
-    echo ""
+    printf "\n"
     info "Checking optional dependencies for enhanced multi-model support..."
-    echo ""
+    printf "\n"
 
     if check_command codex; then
         success "codex found - oracle/reviewer will use OpenAI for diverse perspectives"
     else
         info "codex not found - agents will use Claude for second opinions"
-        echo "    To enable OpenAI diversity: npm install -g @openai/codex"
+        printf "    To enable OpenAI diversity: npm install -g @openai/codex\n"
     fi
 
     if check_command gemini; then
         success "gemini found - documenter will use Gemini for writing"
     else
         info "gemini not found - documenter will use Claude for writing"
-        echo "    To enable Gemini diversity: npm install -g @google/gemini-cli"
+        printf "    To enable Gemini diversity: npm install -g @google/gemini-cli\n"
     fi
 }
 
 main() {
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    echo "  ${BLUE}idle${NC} - dependency installer"
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
+    printf "\n"
+    printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    printf "\n"
+    printf "  ${BLUE}idle${NC} - dependency installer\n"
+    printf "\n"
+    printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    printf "\n"
 
     # Required dependencies
     info "Installing required dependencies..."
@@ -148,24 +148,24 @@ main() {
     # Optional dependencies (just check, don't install)
     check_optional_deps
 
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
+    printf "\n"
+    printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    printf "\n"
     success "Setup complete!"
-    echo ""
-    echo "Install the plugin in Claude Code:"
-    echo ""
-    echo "  ${GREEN}/plugin marketplace add femtomc/idle${NC}"
-    echo "  ${GREEN}/plugin install idle@idle${NC}"
-    echo ""
-    echo "Then start using idle:"
-    echo ""
-    echo "  ${BLUE}tissue init${NC}      # Initialize issue tracker"
-    echo "  ${BLUE}jwz init${NC}         # Initialize messaging"
-    echo "  ${BLUE}/grind${NC}           # Work through issues"
-    echo "  ${BLUE}/review${NC}          # Code review"
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    printf "\n"
+    printf "Install the plugin in Claude Code:\n"
+    printf "\n"
+    printf "  ${GREEN}/plugin marketplace add femtomc/idle${NC}\n"
+    printf "  ${GREEN}/plugin install idle@idle${NC}\n"
+    printf "\n"
+    printf "Then start using idle:\n"
+    printf "\n"
+    printf "  ${BLUE}tissue init${NC}      # Initialize issue tracker\n"
+    printf "  ${BLUE}jwz init${NC}         # Initialize messaging\n"
+    printf "  ${BLUE}/grind${NC}           # Work through issues\n"
+    printf "  ${BLUE}/review${NC}          # Code review\n"
+    printf "\n"
+    printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 }
 
 main
