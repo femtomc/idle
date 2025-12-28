@@ -151,14 +151,29 @@ main() {
     printf "\n"
     printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
     printf "\n"
-    success "Setup complete!"
+    success "Dependencies installed!"
     printf "\n"
-    printf "Install the plugin in Claude Code:\n"
+
+    # Install the Claude Code plugin
+    if check_command claude; then
+        info "Installing idle plugin..."
+        claude plugin marketplace add trivial/idle 2>/dev/null || true
+        if claude plugin install idle@trivial 2>/dev/null; then
+            success "idle plugin installed!"
+        else
+            warn "Plugin install failed. Try manually in Claude Code:"
+            printf "  ${GREEN}/plugin marketplace add trivial/idle${NC}\n"
+            printf "  ${GREEN}/plugin install idle@trivial${NC}\n"
+        fi
+    else
+        warn "claude CLI not found. Install the plugin manually in Claude Code:"
+        printf "\n"
+        printf "  ${GREEN}/plugin marketplace add trivial/idle${NC}\n"
+        printf "  ${GREEN}/plugin install idle@trivial${NC}\n"
+    fi
+
     printf "\n"
-    printf "  ${GREEN}/plugin marketplace add femtomc/idle${NC}\n"
-    printf "  ${GREEN}/plugin install idle@idle${NC}\n"
-    printf "\n"
-    printf "Then start using idle:\n"
+    printf "Start using idle:\n"
     printf "\n"
     printf "  ${BLUE}tissue init${NC}      # Initialize issue tracker\n"
     printf "  ${BLUE}jwz init${NC}         # Initialize messaging\n"
