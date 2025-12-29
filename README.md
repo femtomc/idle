@@ -88,6 +88,7 @@ idle uses git worktrees to enable parallel work. Each issue gets its own isolate
 - [zawinski](https://github.com/femtomc/zawinski) - Async messaging (for agent communication)
 - [uv](https://github.com/astral-sh/uv) - Python package runner (for `scripts/search.py`)
 - [gh](https://cli.github.com/) - GitHub CLI (for bob's GitHub research)
+- [bibval](https://github.com/evil-mind-evil-sword/bibval) - Citation validator (for bob's academic research)
 
 ### Optional (for enhanced multi-model diversity)
 

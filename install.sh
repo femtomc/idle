@@ -109,6 +109,21 @@ install_jwz() {
     fi
 }
 
+install_bibval() {
+    if check_command bibval; then
+        success "bibval already installed"
+        return
+    fi
+    info "Installing bibval (citation validator)..."
+    if check_command cargo; then
+        cargo install --git https://github.com/evil-mind-evil-sword/bibval bibval
+        success "bibval installed"
+    else
+        warn "Rust/Cargo not found. Install from https://rustup.rs/ then run:"
+        warn "  cargo install --git https://github.com/evil-mind-evil-sword/bibval bibval"
+    fi
+}
+
 check_optional_deps() {
     printf "\n"
     info "Checking optional dependencies for enhanced multi-model support..."
@@ -137,6 +152,7 @@ main() {
     install_gh
     install_tissue
     install_jwz
+    install_bibval
 
     # Optional dependencies (just check, don't install)
     check_optional_deps

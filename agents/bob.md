@@ -27,6 +27,7 @@ Research external code, libraries, and documentation:
 - `gh repo view` - repository info
 - `mkdir -p .claude/plugins/idle/bob` - create artifact directory
 - `jwz post` - post notifications
+- `bibval` - validate BibTeX citations against academic databases
 
 ## Research Process (ReAct)
 
@@ -148,3 +149,31 @@ OBSERVATION: [findings with URLs]
 ## Open Questions
 [What couldn't be answered]
 ```
+
+## Academic Citation Validation
+
+When researching academic papers or providing BibTeX references, use `bibval` to validate citations:
+
+```bash
+# Validate a .bib file
+bibval references.bib
+
+# Validate specific entries
+bibval references.bib -k author2024paper,other2023work
+```
+
+bibval checks citations against:
+- CrossRef (DOI resolution)
+- DBLP (CS bibliography)
+- ArXiv (preprints)
+- Semantic Scholar
+- OpenAlex
+- OpenReview (ML conferences)
+
+It catches:
+- Year mismatches
+- Title differences
+- Missing DOIs
+- Author discrepancies
+
+Always validate BibTeX before including in research artifacts.

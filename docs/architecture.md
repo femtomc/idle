@@ -340,6 +340,7 @@ The agent becomes available automatically as `idle:your-agent`.
 - [zawinski](https://github.com/femtomc/zawinski) - Async messaging for agent communication
 - [uv](https://github.com/astral-sh/uv) - Python package runner for `scripts/search.py`
 - [gh](https://cli.github.com/) - GitHub CLI for bob's research
+- [bibval](https://github.com/evil-mind-evil-sword/bibval) - Citation validator for bob's academic research
 
 ### Optional
 
