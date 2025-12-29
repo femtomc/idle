@@ -205,7 +205,7 @@ STATEEOF
     test_case "Concurrent sessions handle locking safely" "pass" false
 
 # ============================================================================
-# TEST FIXTURE 6: Issue mode completion signal
+# TEST FIXTURE 6: Issue mode completion signal (unified <loop-done>)
 # ============================================================================
 echo ""
 echo "--- Fixture 6: Issue Mode Completion ---"
@@ -213,7 +213,7 @@ mkdir -p "$TEMP_DIR/issue-mode"
 
 cat > "$TEMP_DIR/issue-mode/transcript.jsonl" << 'EOF'
 {"type":"assistant","message":{"content":[{"type":"text","text":"Working on the issue..."}]}}
-{"type":"assistant","message":{"content":[{"type":"text","text":"Issue resolved.\n<issue-complete>DONE</issue-complete>"}]}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"Issue resolved.\n<loop-done>COMPLETE</loop-done>"}]}}
 EOF
 
 (
@@ -230,41 +230,41 @@ STATEEOF
 
     echo "{\"transcript_path\":\"$TEMP_DIR/issue-mode/transcript.jsonl\",\"cwd\":\"$(pwd)\"}" | bash "$HOOK" > /dev/null 2>&1
     exit_code=$?
-    # Should exit with 0 (issue completion found)
+    # Should exit with 0 (completion found)
     [[ $exit_code -eq 0 ]]
-) && test_case "Issue mode <issue-complete> signal matched" "pass" true || \
-    test_case "Issue mode <issue-complete> signal matched" "pass" false
+) && test_case "Issue mode <loop-done>COMPLETE signal matched" "pass" true || \
+    test_case "Issue mode <loop-done>COMPLETE signal matched" "pass" false
 
 # ============================================================================
-# TEST FIXTURE 7: Grind mode completion
+# TEST FIXTURE 7: Task mode completion (unified <loop-done>)
 # ============================================================================
 echo ""
-echo "--- Fixture 7: Grind Mode Completion ---"
-mkdir -p "$TEMP_DIR/grind-mode"
+echo "--- Fixture 7: Task Mode Completion ---"
+mkdir -p "$TEMP_DIR/task-mode"
 
-cat > "$TEMP_DIR/grind-mode/transcript.jsonl" << 'EOF'
-{"type":"assistant","message":{"content":[{"type":"text","text":"Processing issues..."}]}}
-{"type":"assistant","message":{"content":[{"type":"text","text":"All done.\n<grind-done>NO_MORE_ISSUES</grind-done>"}]}}
+cat > "$TEMP_DIR/task-mode/transcript.jsonl" << 'EOF'
+{"type":"assistant","message":{"content":[{"type":"text","text":"Processing task..."}]}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"All done.\n<loop-done>COMPLETE</loop-done>"}]}}
 EOF
 
 (
-    cd "$TEMP_DIR/grind-mode"
+    cd "$TEMP_DIR/task-mode"
     mkdir -p .claude
     cat > .claude/idle-loop.local.md << 'STATEEOF'
 ---
 active: true
-mode: grind
+mode: task
 iteration: 2
 max_iterations: 10
 ---
 STATEEOF
 
-    echo "{\"transcript_path\":\"$TEMP_DIR/grind-mode/transcript.jsonl\",\"cwd\":\"$(pwd)\"}" | bash "$HOOK" > /dev/null 2>&1
+    echo "{\"transcript_path\":\"$TEMP_DIR/task-mode/transcript.jsonl\",\"cwd\":\"$(pwd)\"}" | bash "$HOOK" > /dev/null 2>&1
     exit_code=$?
-    # Should exit with 0 (grind completion found)
+    # Should exit with 0 (completion found)
     [[ $exit_code -eq 0 ]]
-) && test_case "Grind mode completion signal matched" "pass" true || \
-    test_case "Grind mode completion signal matched" "pass" false
+) && test_case "Task mode <loop-done>COMPLETE signal matched" "pass" true || \
+    test_case "Task mode <loop-done>COMPLETE signal matched" "pass" false
 
 # ============================================================================
 # TEST FIXTURE 8: No state file - should exit cleanly

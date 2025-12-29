@@ -383,53 +383,73 @@ EOF
             if git -C "$WORKTREE_PATH" diff --quiet 2>/dev/null && \
                git -C "$WORKTREE_PATH" diff --cached --quiet 2>/dev/null; then
 
-                # Fetch from main repo
+                # Fetch from main repo and update local BASE_REF
                 git -C "$MAIN_REPO" fetch origin 2>/dev/null || true
 
                 # Check if main repo has uncommitted changes
-                MAIN_DIRTY=false
+                STASH_CREATED=false
+                STASH_REF=""
                 if ! git -C "$MAIN_REPO" diff --quiet 2>/dev/null || \
                    ! git -C "$MAIN_REPO" diff --cached --quiet 2>/dev/null; then
-                    MAIN_DIRTY=true
-                    # Stash main repo changes
-                    STASH_RESULT=$(git -C "$MAIN_REPO" stash push -m "idle-auto-land-$$" 2>&1)
-                    STASH_CREATED=false
-                    if [[ "$STASH_RESULT" != *"No local changes"* ]]; then
+                    # Count stashes before push (locale-independent detection)
+                    STASH_COUNT_BEFORE=$(git -C "$MAIN_REPO" stash list 2>/dev/null | wc -l | tr -d ' ')
+                    git -C "$MAIN_REPO" stash push -m "idle-auto-land-$$" 2>/dev/null || true
+                    STASH_COUNT_AFTER=$(git -C "$MAIN_REPO" stash list 2>/dev/null | wc -l | tr -d ' ')
+                    if [[ "$STASH_COUNT_AFTER" -gt "$STASH_COUNT_BEFORE" ]]; then
                         STASH_CREATED=true
+                        STASH_REF="stash@{0}"
                     fi
                 fi
 
-                # Attempt fast-forward merge from main repo (not worktree)
-                # Use -C to run commands in main repo context
-                if git -C "$MAIN_REPO" merge --ff-only "$BRANCH" 2>/dev/null; then
-                    # Push to remote
-                    if git -C "$MAIN_REPO" push origin "$BASE_REF" 2>/dev/null; then
-                        # Clean up worktree and branch
-                        git -C "$MAIN_REPO" worktree remove "$WORKTREE_PATH" 2>/dev/null || true
-                        git -C "$MAIN_REPO" branch -d "$BRANCH" 2>/dev/null || true
+                # Verify branch can fast-forward into BASE_REF
+                # First, update local BASE_REF to match origin
+                CURRENT_BASE=$(git -C "$MAIN_REPO" rev-parse "refs/heads/$BASE_REF" 2>/dev/null || echo "")
+                ORIGIN_BASE=$(git -C "$MAIN_REPO" rev-parse "refs/remotes/origin/$BASE_REF" 2>/dev/null || echo "")
+                BRANCH_TIP=$(git -C "$MAIN_REPO" rev-parse "refs/heads/$BRANCH" 2>/dev/null || echo "")
 
-                        # Update tissue
-                        tissue status "$ISSUE_ID" closed 2>/dev/null || true
-                        tissue comment "$ISSUE_ID" -m "[loop] Merged to $BASE_REF and cleaned up" 2>/dev/null || true
-
-                        # Post to jwz
-                        jwz post "issue:$ISSUE_ID" -m "[loop] LANDED: Merged to $BASE_REF" 2>/dev/null || true
-                        jwz post "project:$(basename "$MAIN_REPO")" -m "[loop] Issue $ISSUE_ID landed" 2>/dev/null || true
-
-                        AUTO_LAND_SUCCESS=true
-                        emit_trace_event "AUTO_LAND_SUCCESS" "{\"issue_id\":\"$ISSUE_ID\"}"
-                    else
-                        emit_trace_event "AUTO_LAND_PUSH_FAILED" "{\"issue_id\":\"$ISSUE_ID\"}"
-                    fi
-                else
-                    # Fast-forward failed - need rebase
+                if [[ -z "$BRANCH_TIP" ]]; then
+                    emit_trace_event "AUTO_LAND_NO_BRANCH" "{\"issue_id\":\"$ISSUE_ID\",\"branch\":\"$BRANCH\"}"
+                    jwz post "issue:$ISSUE_ID" -m "[loop] AUTO_LAND_FAILED: Branch $BRANCH not found" 2>/dev/null || true
+                elif [[ -n "$ORIGIN_BASE" ]] && ! git -C "$MAIN_REPO" merge-base --is-ancestor "$ORIGIN_BASE" "$BRANCH_TIP" 2>/dev/null; then
+                    # Branch is not a fast-forward from origin/BASE_REF
                     emit_trace_event "AUTO_LAND_FF_FAILED" "{\"issue_id\":\"$ISSUE_ID\"}"
-                    jwz post "issue:$ISSUE_ID" -m "[loop] AUTO_LAND_FAILED: Cannot fast-forward. Rebase needed." 2>/dev/null || true
+                    jwz post "issue:$ISSUE_ID" -m "[loop] AUTO_LAND_FAILED: Cannot fast-forward. Rebase onto origin/$BASE_REF needed." 2>/dev/null || true
+                else
+                    # Update local BASE_REF to origin/BASE_REF first (if behind)
+                    if [[ -n "$ORIGIN_BASE" ]] && [[ "$CURRENT_BASE" != "$ORIGIN_BASE" ]]; then
+                        git -C "$MAIN_REPO" update-ref "refs/heads/$BASE_REF" "$ORIGIN_BASE" 2>/dev/null || true
+                    fi
+
+                    # Now fast-forward BASE_REF to include the branch
+                    if git -C "$MAIN_REPO" update-ref "refs/heads/$BASE_REF" "$BRANCH_TIP" 2>/dev/null; then
+                        # Push to remote
+                        if git -C "$MAIN_REPO" push origin "$BASE_REF" 2>/dev/null; then
+                            # Clean up worktree and branch
+                            git -C "$MAIN_REPO" worktree remove "$WORKTREE_PATH" 2>/dev/null || true
+                            git -C "$MAIN_REPO" branch -d "$BRANCH" 2>/dev/null || true
+
+                            # Update tissue
+                            tissue status "$ISSUE_ID" closed 2>/dev/null || true
+                            tissue comment "$ISSUE_ID" -m "[loop] Merged to $BASE_REF and cleaned up" 2>/dev/null || true
+
+                            # Post to jwz
+                            jwz post "issue:$ISSUE_ID" -m "[loop] LANDED: Merged to $BASE_REF" 2>/dev/null || true
+                            jwz post "project:$(basename "$MAIN_REPO")" -m "[loop] Issue $ISSUE_ID landed" 2>/dev/null || true
+
+                            AUTO_LAND_SUCCESS=true
+                            emit_trace_event "AUTO_LAND_SUCCESS" "{\"issue_id\":\"$ISSUE_ID\"}"
+                        else
+                            emit_trace_event "AUTO_LAND_PUSH_FAILED" "{\"issue_id\":\"$ISSUE_ID\"}"
+                            jwz post "issue:$ISSUE_ID" -m "[loop] AUTO_LAND_FAILED: Push rejected. Remote may have new commits." 2>/dev/null || true
+                        fi
+                    else
+                        emit_trace_event "AUTO_LAND_UPDATE_REF_FAILED" "{\"issue_id\":\"$ISSUE_ID\"}"
+                    fi
                 fi
 
-                # Restore stashed changes if we stashed
-                if [[ "${STASH_CREATED:-false}" == "true" ]]; then
-                    git -C "$MAIN_REPO" stash pop -q 2>/dev/null || true
+                # Restore stashed changes if we created a stash
+                if [[ "$STASH_CREATED" == "true" ]] && [[ -n "$STASH_REF" ]]; then
+                    git -C "$MAIN_REPO" stash pop "$STASH_REF" 2>/dev/null || true
                 fi
             else
                 emit_trace_event "AUTO_LAND_DIRTY" "{\"issue_id\":\"$ISSUE_ID\"}"

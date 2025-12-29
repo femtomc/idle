@@ -248,7 +248,19 @@ Save the review to:
 .claude/plugins/idle/reviewer/<issue-id>-<timestamp>.md
 ```
 
-### Step 2: Post notification to jwz
+### Step 2: Post verdict to jwz (for stop-hook review gate)
+
+First, post the verdict in the format the stop-hook expects:
+
+```bash
+# Get current commit SHA
+CURRENT_SHA=$(git rev-parse HEAD)
+
+# Post verdict (stop-hook reads this to enforce review gate)
+jwz post "issue:<issue-id>" -m "[review] <LGTM|CHANGES_REQUESTED> sha:$CURRENT_SHA"
+```
+
+### Step 3: Post detailed review notification
 
 ```bash
 jwz post "issue:<issue-id>" --role reviewer \
