@@ -2,7 +2,7 @@
 set -e
 
 # idle dependency installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/femtomc/idle/main/install.sh | sh
+# Usage: curl -fsSL https://raw.githubusercontent.com/evil-mind-evil-sword/idle/main/install.sh | sh
 
 # Colors for output
 if [ -t 1 ]; then
@@ -85,12 +85,14 @@ install_tissue() {
         return
     fi
     info "Installing tissue (issue tracker)..."
-    if check_command cargo; then
-        cargo install --git https://github.com/femtomc/tissue tissue
+    curl -fsSL https://github.com/evil-mind-evil-sword/tissue/releases/latest/download/install.sh -o /tmp/tissue-install.sh
+    TISSUE_INSTALL_DIR="${HOME}/.local/bin" sh /tmp/tissue-install.sh
+    rm -f /tmp/tissue-install.sh
+    if check_command tissue; then
         success "tissue installed"
     else
-        warn "Rust/Cargo not found. Install from https://rustup.rs/ then run:"
-        warn "  cargo install --git https://github.com/femtomc/tissue tissue"
+        warn "tissue installation failed. Install manually:"
+        warn "  curl -fsSL https://github.com/evil-mind-evil-sword/tissue/releases/latest/download/install.sh | sh"
     fi
 }
 
@@ -100,12 +102,12 @@ install_jwz() {
         return
     fi
     info "Installing jwz (async messaging)..."
-    if check_command cargo; then
-        cargo install --git https://github.com/femtomc/zawinski jwz
+    curl -fsSL https://github.com/evil-mind-evil-sword/zawinski/releases/latest/download/install.sh | sh
+    if check_command jwz; then
         success "jwz installed"
     else
-        warn "Rust/Cargo not found. Install from https://rustup.rs/ then run:"
-        warn "  cargo install --git https://github.com/femtomc/zawinski jwz"
+        warn "jwz installation failed. Install manually:"
+        warn "  curl -fsSL https://github.com/evil-mind-evil-sword/zawinski/releases/latest/download/install.sh | sh"
     fi
 }
 
