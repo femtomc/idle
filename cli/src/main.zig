@@ -26,6 +26,7 @@ const usage =
     \\  emit           Post structured message to jwz
     \\  spawn          Spawn a subagent (enforces limits)
     \\  worktree       Manage git worktrees for issues
+    \\  issues         List/show issues from tissue
     \\  version        Show version information
     \\
     \\Exit codes:
@@ -73,6 +74,8 @@ pub fn main() !u8 {
         return runSpawn(allocator, args[2..]);
     } else if (std.mem.eql(u8, command, "worktree")) {
         return runWorktree(allocator, args[2..]);
+    } else if (std.mem.eql(u8, command, "issues")) {
+        return runIssues(allocator, args[2..]);
     } else if (std.mem.eql(u8, command, "version")) {
         try writeStdout("idle-hook 0.1.0\n");
         return 0;
@@ -376,6 +379,133 @@ fn runWorktree(allocator: std.mem.Allocator, args: []const []const u8) !u8 {
             break :blk 1;
         },
     };
+}
+
+fn runIssues(allocator: std.mem.Allocator, args: []const []const u8) !u8 {
+    const tissue = @import("tissue");
+
+    // Parse: issues [ready|show <id>] [--json]
+    var json = false;
+    var subcommand: []const u8 = "ready";
+    var issue_id: ?[]const u8 = null;
+
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) {
+        if (std.mem.eql(u8, args[i], "--json")) {
+            json = true;
+        } else if (std.mem.eql(u8, args[i], "ready")) {
+            subcommand = "ready";
+        } else if (std.mem.eql(u8, args[i], "show") and i + 1 < args.len) {
+            subcommand = "show";
+            i += 1;
+            issue_id = args[i];
+        } else if (std.mem.eql(u8, args[i], "close") and i + 1 < args.len) {
+            subcommand = "close";
+            i += 1;
+            issue_id = args[i];
+        } else if (issue_id == null and !std.mem.startsWith(u8, args[i], "-")) {
+            // Bare argument - treat as issue ID for show
+            issue_id = args[i];
+            subcommand = "show";
+        }
+    }
+
+    // Open store
+    const store_dir = tissue.store.discoverStoreDir(allocator) catch {
+        try writeStderr("No .tissue store found\n");
+        return 1;
+    };
+    defer allocator.free(store_dir);
+
+    var store = tissue.store.Store.open(allocator, store_dir) catch |err| {
+        var buf: [256]u8 = undefined;
+        const msg = std.fmt.bufPrint(&buf, "Failed to open store: {s}\n", .{@errorName(err)}) catch "Failed to open store\n";
+        try writeStderr(msg);
+        return 1;
+    };
+    defer store.deinit();
+
+    if (std.mem.eql(u8, subcommand, "ready")) {
+        const ready_issues = store.listReadyIssues() catch |err| {
+            var buf: [256]u8 = undefined;
+            const msg = std.fmt.bufPrint(&buf, "Failed to list issues: {s}\n", .{@errorName(err)}) catch "Failed\n";
+            try writeStderr(msg);
+            return 1;
+        };
+        defer {
+            for (ready_issues) |*issue| issue.deinit(allocator);
+            allocator.free(ready_issues);
+        }
+
+        if (json) {
+            try writeStdout("[");
+            for (ready_issues, 0..) |issue, idx| {
+                if (idx > 0) try writeStdout(",");
+                var buf: [4096]u8 = undefined;
+                var fbs = std.io.fixedBufferStream(&buf);
+                const w = fbs.writer();
+                w.print("{{\"id\":\"{s}\",\"title\":\"{s}\",\"priority\":{d}}}", .{
+                    issue.id,
+                    issue.title,
+                    issue.priority,
+                }) catch {};
+                try writeStdout(fbs.getWritten());
+            }
+            try writeStdout("]\n");
+        } else {
+            if (ready_issues.len == 0) {
+                try writeStdout("No ready issues\n");
+            } else {
+                for (ready_issues) |issue| {
+                    var buf: [256]u8 = undefined;
+                    const line = std.fmt.bufPrint(&buf, "{s}  P{d}  {s}\n", .{
+                        issue.id,
+                        issue.priority,
+                        issue.title,
+                    }) catch continue;
+                    try writeStdout(line);
+                }
+            }
+        }
+    } else if (std.mem.eql(u8, subcommand, "show")) {
+        const id = issue_id orelse {
+            try writeStderr("Usage: idle-hook issues show <id>\n");
+            return 1;
+        };
+
+        var issue = store.fetchIssue(id) catch |err| {
+            var buf: [256]u8 = undefined;
+            const msg = std.fmt.bufPrint(&buf, "Issue not found: {s}\n", .{@errorName(err)}) catch "Not found\n";
+            try writeStderr(msg);
+            return 1;
+        };
+        defer issue.deinit(allocator);
+
+        const output = idle.issues.formatIssue(allocator, &issue) catch {
+            try writeStderr("Failed to format issue\n");
+            return 1;
+        };
+        defer allocator.free(output);
+        try writeStdout(output);
+    } else if (std.mem.eql(u8, subcommand, "close")) {
+        const id = issue_id orelse {
+            try writeStderr("Usage: idle-hook issues close <id>\n");
+            return 1;
+        };
+
+        store.updateIssue(id, null, null, "closed", null, &.{}, &.{}) catch |err| {
+            var buf: [256]u8 = undefined;
+            const msg = std.fmt.bufPrint(&buf, "Failed to close: {s}\n", .{@errorName(err)}) catch "Failed\n";
+            try writeStderr(msg);
+            return 1;
+        };
+
+        var buf: [128]u8 = undefined;
+        const msg = std.fmt.bufPrint(&buf, "Closed {s}\n", .{id}) catch "Closed\n";
+        try writeStdout(msg);
+    }
+
+    return 0;
 }
 
 test {
