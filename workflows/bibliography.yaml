@@ -1,0 +1,85 @@
+# Bibliography Management Workflows
+# Multiple operations for managing BibTeX files
+
+name: bibliography
+skill: bib-managing
+description: Curate, validate, and clean BibTeX bibliographies
+
+operations:
+  add:
+    description: Add a single citation
+    phases:
+      - name: search
+        role: orchestrator
+        action: Find paper in academic databases, get BibTeX
+        outputs: [bibtex_entry]
+      - name: validate
+        role: orchestrator
+        action: Run bibval on entry
+        outputs: [validation_result]
+      - name: append
+        role: orchestrator
+        action: Add validated entry to references.bib
+        outputs: [updated_file]
+
+  validate:
+    description: Validate existing bibliography
+    phases:
+      - name: check
+        role: orchestrator
+        action: Run bibval on file
+        outputs: [errors, warnings]
+      - name: triage
+        role: reviewer
+        action: Categorize issues as AUTO_FIX, VERIFY, ACCEPT
+        outputs: [fix_list]
+      - name: fix
+        role: orchestrator
+        action: Apply AUTO_FIX items
+        iterate_on_errors: true
+        max_iterations: 2
+        outputs: [updated_file]
+
+  curate:
+    description: Build bibliography for document
+    phases:
+      - name: analyze
+        role: reviewer
+        action: Identify citation needs in document
+        outputs: [claims, existing_refs, missing_seminal]
+      - name: research
+        role: orchestrator
+        action: Find and validate BibTeX for needed citations
+        outputs: [bibtex_entries]
+      - name: coverage_review
+        role: reviewer
+        action: Verify all claims have citations
+        outputs: [verdict, gaps]
+        iterate_on_revise: true
+        max_iterations: 1
+
+  clean:
+    description: Deduplicate and standardize bibliography
+    phases:
+      - name: dedup
+        role: orchestrator
+        action: Remove duplicates (exact and fuzzy)
+        outputs: [changes]
+      - name: standardize
+        role: orchestrator
+        action: Normalize keys, venues, authors, fill DOIs
+        outputs: [changes]
+      - name: validate
+        role: orchestrator
+        action: Run bibval on cleaned file
+        outputs: [validation_result]
+      - name: consistency_review
+        role: reviewer
+        action: Verify formatting consistency
+        outputs: [verdict]
+
+stop_conditions:
+  - bibval_passes
+  - reviewer_approves
+  - needs_user_input
+  - max_iterations_reached

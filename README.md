@@ -35,11 +35,14 @@ Then in Claude Code:
 | Agent | Model | Second Opinion | Description |
 |-------|-------|----------------|-------------|
 | `alice` | opus | codex or claude | Deep reasoning, quality gates, design decisions |
-| `bob` | haiku | — | External research with citations (GitHub, docs, APIs) |
+| `bob` | opus | — | Task orchestrator: decomposes, spawns workers, synthesizes |
+| `charlie` | haiku | — | Leaf worker: executes focused tasks, posts to jwz |
 
 ### How it works
 
-idle acts as an "outer harness" for Claude Code that orchestrates specialized agents within a continuous loop. bob handles fast information retrieval, while alice drives complex reasoning with multi-model consensus.
+idle acts as an "outer harness" for Claude Code that orchestrates specialized agents within a continuous loop. bob and charlie implement a **dynamic programming pattern**: bob decomposes complex tasks into subtasks, spawns charlie workers in parallel, coordinates via jwz messaging, and synthesizes results. alice provides deep reasoning with multi-model consensus.
+
+**Domain specialization via skills**: bob and charlie are domain-agnostic orchestrators/workers. Skills (like `/researching`) inject domain-specific context (decomposition strategies, synthesis rules, output formats) via `--append-system-prompt`.
 
 When the primary agent needs deep analysis or quality validation, alice consults a secondary model. If an external model (Codex) is available, it provides an independent perspective. If not, alice falls back to `claude -p`, creating a fresh context to break the self-refinement loop.
 
@@ -49,17 +52,21 @@ When the primary agent needs deep analysis or quality validation, alice consults
 - **Correlated Failures:** Distinct model architectures have different blind spots. Consensus between Claude and Codex catches edge cases that a single model family might miss.
 - **Efficiency:** The harness routes simple tasks to bob (fast, cheap) and reserves the expensive consensus process for alice's complex reasoning steps.
 
-See [docs/architecture.md](docs/architecture.md) for details.
+See [workflows/README.md](workflows/README.md) for the three-layer architecture.
 
 ## Skills
 
-Auto-discovered capabilities based on context:
+Auto-discovered capabilities that compose agents for domain-specific tasks:
 
 | Skill | Description |
 |-------|-------------|
 | `messaging` | Post/read jwz messages for agent coordination |
 | `issue-tracking` | Create/manage tissue issues for work tracking |
-| `researching` | Comprehensive research with quality gate (bob → alice) |
+| `researching` | Web research with quality gate (bob → charlie workers → alice review) |
+| `technical-writing` | Document drafting with multi-layer review (bob → alice) |
+| `bib-managing` | Bibliography curation and validation (bob → bibval → alice) |
+
+Skills inject domain-specific context into the generic bob/charlie agents.
 
 ## Commands
 
@@ -87,8 +94,8 @@ idle uses git worktrees to enable parallel work. Each issue gets its own isolate
 - [tissue](https://github.com/femtomc/tissue) - Issue tracker (for `/loop` issue mode)
 - [zawinski](https://github.com/femtomc/zawinski) - Async messaging (for agent communication)
 - [uv](https://github.com/astral-sh/uv) - Python package runner (for `scripts/search.py`)
-- [gh](https://cli.github.com/) - GitHub CLI (for bob's GitHub research)
-- [bibval](https://github.com/evil-mind-evil-sword/bibval) - Citation validator (for bob's academic research)
+- [gh](https://cli.github.com/) - GitHub CLI (for GitHub research)
+- [bibval](https://github.com/evil-mind-evil-sword/bibval) - Citation validator (for `/researching` skill)
 
 ### Optional (for enhanced multi-model diversity)
 
@@ -141,17 +148,17 @@ tissue new "Refactor database queries" -p 2 -t tech-debt
 ### Call agents directly
 
 ```shell
-# Research external code (fast, uses haiku)
-"How does React Query handle cache invalidation?"
-# → bob fetches docs and explains with citations
-
 # Deep reasoning on hard problems (thorough, uses opus + second opinion)
 "I'm stuck on this race condition, help me debug it"
 # → alice analyzes with external dialogue, provides recommendation
 
 # Comprehensive research with quality gate
 /researching OAuth 2.0 best practices for SPAs
-# → bob researches, alice validates, produces verified artifact
+# → bob orchestrates charlie workers, alice validates, produces verified artifact
+
+# Or orchestrate any complex task
+"Review the authentication module for security issues"
+# → bob decomposes into subtasks, charlie workers execute, bob synthesizes
 ```
 
 ## Observability

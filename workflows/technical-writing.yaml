@@ -1,0 +1,40 @@
+# Technical Writing Workflow
+# Draft with multi-layer sequential review
+
+name: technical-writing
+skill: technical-writing
+description: Draft content, then review through structure/clarity/evidence layers
+
+phases:
+  - name: draft
+    role: orchestrator
+    action: Draft content following skill principles
+    inputs: [topic, audience, key_points]
+    outputs: [artifact]
+
+  - name: structure_review
+    role: reviewer
+    action: Review against Layer 1 (Structure) rubric
+    outputs: [verdict, fixes]
+    iterate_on_revise: true
+    max_iterations: 1
+
+  - name: clarity_review
+    role: reviewer
+    action: Review against Layer 2 (Clarity) rubric
+    outputs: [verdict, fixes]
+    iterate_on_revise: true
+    max_iterations: 1
+
+  - name: evidence_review
+    role: reviewer
+    action: Review against Layer 3 (Evidence) rubric
+    outputs: [verdict, fixes]
+    iterate_on_revise: true
+    max_iterations: 1
+
+stop_conditions:
+  - all_reviews_pass
+  - needs_user_input
+
+artifact_path: .claude/plugins/idle/artifacts/writing/<topic>.md

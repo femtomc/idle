@@ -1,157 +1,88 @@
 ---
 name: researching
-description: Comprehensive research with orchestrated workers and quality gate. Bob decomposes tasks, spawns charlie workers in parallel, synthesizes results, and routes to alice for review. Use for complex research that should be verified and persist.
+description: Comprehensive research with cited sources. Use for complex research that should be verified and persist.
 ---
 
-# Researching Skill
+# Researching
 
-Orchestrated research with parallel workers and quality gate.
+Produce well-sourced research artifacts with verified citations.
 
 ## When to Use
 
 - Complex research requiring multiple sub-queries
 - Need documented research that persists beyond conversation
 - Topic requires source verification and confidence calibration
-- Research should be discoverable by other agents via jwz
 - High-stakes decisions that need cited evidence
 
-**Don't use for**: Quick lookups. Just ask naturally.
+**Don't use for**: Quick lookups. Just search directly.
 
-## Agent Roles
+## Artifact Requirements
 
-| Agent | Role | Model |
-|-------|------|-------|
-| **bob** | Orchestrator - decomposes, dispatches, synthesizes | opus |
-| **charlie** | Worker - executes focused queries | haiku |
-| **alice** | Quality gate - reviews synthesis | opus |
+- **Minimum 3 independent evidence bundles** per research topic
+- Each bundle must cite primary sources with URLs
+- Source diversity required: official docs, peer-reviewed, reputable secondary
+- Academic citations must be validated with `bibval`
 
-## Composition Pattern
+## Quality Rubric
 
-```
-bob (orchestrator)
- ├─→ charlie (worker) ──→ jwz ──┐
- ├─→ charlie (worker) ──→ jwz ──┼─→ bob (synthesize) ──→ alice (review)
- └─→ charlie (worker) ──→ jwz ──┘
-```
+| Criterion | Requirement |
+|-----------|-------------|
+| **Citations** | Every claim has inline citation with URL |
+| **Coverage** | Key perspectives included (not just first result) |
+| **Recency** | Sources current (≤2 years for APIs/tech, flexible for fundamentals) |
+| **Confidence** | Calibrated honestly; uncertainties stated explicitly |
+| **Conflicts** | Disagreements between sources noted, not hidden |
 
-**Bounds**: MAX_DEPTH=3, MAX_WORKERS=10
+## Source Credibility Hierarchy
 
-## Quality Rubric (Shared)
+Weight findings by source authority:
 
-| Criterion | Check |
-|-----------|-------|
-| **Citations** | Every claim has inline citation |
-| **Coverage** | Key perspectives included |
-| **Recency** | Sources current (≤2 years for APIs) |
-| **Confidence** | Not overclaiming; uncertainties stated |
-| **Conflicts** | Disagreements noted, not hidden |
+1. **Official documentation** - canonical, highest weight
+2. **Peer-reviewed papers** - validated, high weight
+3. **Reputable blogs/talks** - expert authors, medium weight
+4. **Stack Overflow (accepted)** - community validated, medium weight
+5. **Forums/unverified** - low weight, note uncertainty
 
-## Workflow
+## Output Schema
 
-### Step 1: Orchestrate (bob)
-
-Invoke bob to orchestrate research:
-
-```
-Task(subagent_type="idle:bob", prompt="Research: <topic>
-
-Decompose into focused sub-queries and dispatch charlie workers.
-Synthesize findings into a coherent artifact.")
-```
-
-**bob does**:
-1. Decomposes topic into 3-5 focused queries
-2. Spawns charlie workers in parallel via `claude -p`
-3. Workers post findings to jwz topic
-4. Collects and synthesizes results
-5. Validates citations with bibval
-6. Writes artifact to `.claude/plugins/idle/bob/<topic>.md`
-
-**bob posts to jwz**:
-```bash
-jwz post "research:<run_id>" --role bob \
-  -m "[bob] SYNTHESIS: <topic>
-Path: .claude/plugins/idle/bob/<topic>.md
-Workers: <N> dispatched, <M> succeeded
-Confidence: HIGH|MEDIUM|LOW"
+```json
+{
+  "topic": "string",
+  "status": "COMPLETE | PARTIAL",
+  "confidence": "HIGH | MEDIUM | LOW",
+  "findings": [
+    {
+      "subtopic": "string",
+      "content": "string with inline citations",
+      "sources": ["url1", "url2"]
+    }
+  ],
+  "sources": [
+    {
+      "url": "string",
+      "title": "string",
+      "authority": "official | peer-reviewed | blog | forum"
+    }
+  ],
+  "gaps": ["string"]
+}
 ```
 
-### Step 2: Quality Gate (alice)
+## Constraints
 
-Invoke alice to review bob's synthesis:
+- Prefer primary sources over secondary
+- Cross-reference claims across multiple sources
+- Flag single-source claims as lower confidence
+- Run `bibval` on academic citations before including
 
-```
-Task(subagent_type="idle:alice", prompt="Review bob's research synthesis at .claude/plugins/idle/bob/<topic>.md
+## Artifact Location
 
-Check:
-- Worker coverage adequate?
-- Synthesis accurately represents findings?
-- Citations properly attributed?
-- Conflicts handled appropriately?")
-```
-
-**alice returns**: **PASS** | **REVISE**
-
-If REVISE, alice provides Required Fixes.
-
-### Step 3: Revision (if REVISE, max 1x)
-
-Re-invoke bob with alice's fixes:
-
-```
-Task(subagent_type="idle:bob", prompt="Revise synthesis at .claude/plugins/idle/bob/<topic>.md
-
-Alice's required fixes:
-- <fix 1>
-- <fix 2>
-
-May spawn additional charlie workers if needed.")
-```
-
-### Step 4: Final Gate
-
-Re-invoke alice for final review.
-
-## Stop Conditions
-
-1. alice returns PASS
-2. One revision cycle completed
-3. Issues need user input
-
-## Output
-
-- Artifact: `.claude/plugins/idle/bob/<topic>.md`
-- jwz thread with orchestration log + review history
-- Worker findings preserved in jwz
-
-## Example
-
-```
-User: "Research authentication best practices for APIs"
-
-bob (orchestrator):
- ├─→ charlie: "JWT validation" → FOUND (HIGH)
- ├─→ charlie: "OAuth PKCE flow" → FOUND (HIGH)
- ├─→ charlie: "Session security" → FOUND (MEDIUM)
- └─→ charlie: "Rate limiting" → FOUND (HIGH)
-
-bob synthesizes → artifact
-
-alice reviews → REVISE (missing token refresh)
-
-bob spawns:
- └─→ charlie: "Token refresh patterns" → FOUND
-
-bob updates synthesis → artifact v2
-
-alice reviews → PASS
-```
+Research artifacts: `.claude/plugins/idle/artifacts/research/<topic>.md`
 
 ## Discovery
 
 ```bash
 jwz search "SYNTHESIS:"
 jwz search "FINDING:"
-jwz search "REVIEW:" | grep "Verdict: PASS"
-ls .claude/plugins/idle/bob/
+ls .claude/plugins/idle/artifacts/research/
 ```

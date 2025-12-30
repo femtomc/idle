@@ -1,0 +1,38 @@
+# Research Workflow
+# Orchestrated research with parallel workers and quality gate
+
+name: research
+skill: researching
+description: Decompose research into sub-queries, execute in parallel, synthesize with review
+
+phases:
+  - name: decompose
+    role: orchestrator
+    action: Break topic into 3-5 focused sub-queries
+    outputs: [subtasks]
+
+  - name: execute
+    role: worker
+    parallel: true
+    fanout: from_subtasks
+    action: Execute each sub-query, post findings to jwz
+    outputs: [findings]
+
+  - name: synthesize
+    role: orchestrator
+    action: Collect findings, deduplicate, reconcile conflicts, produce artifact
+    outputs: [artifact]
+
+  - name: review
+    role: reviewer
+    action: Validate artifact against skill rubric
+    outputs: [verdict]
+    iterate_on_revise: true
+    max_iterations: 1
+
+stop_conditions:
+  - reviewer_passes
+  - max_iterations_reached
+  - needs_user_input
+
+artifact_path: .claude/plugins/idle/artifacts/research/<topic>.md
