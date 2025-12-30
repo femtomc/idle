@@ -184,7 +184,8 @@ pub fn postMessage(
     // Ensure topic exists (create if needed)
     _ = store.fetchTopic(topic) catch |err| {
         if (err == zawinski.store.StoreError.TopicNotFound) {
-            _ = try store.createTopic(topic, "");
+            const topic_id = try store.createTopic(topic, "");
+            allocator.free(topic_id);
         } else {
             return err;
         }
