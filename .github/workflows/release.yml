@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  ZIG_VERSION: "0.15.2"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-linux
+            artifact: idle-hook-linux-x86_64
+            zig_platform: x86_64-linux
+          - os: macos-latest
+            target: x86_64-macos
+            artifact: idle-hook-macos-x86_64
+            zig_platform: aarch64-macos
+          - os: macos-latest
+            target: aarch64-macos
+            artifact: idle-hook-macos-aarch64
+            zig_platform: aarch64-macos
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Zig
+        run: |
+          curl -L "https://ziglang.org/download/${{ env.ZIG_VERSION }}/zig-${{ matrix.zig_platform }}-${{ env.ZIG_VERSION }}.tar.xz" | tar -xJ
+          echo "$PWD/zig-${{ matrix.zig_platform }}-${{ env.ZIG_VERSION }}" >> $GITHUB_PATH
+
+      - name: Verify Zig
+        run: zig version
+
+      - name: Build
+        working-directory: cli
+        run: zig build -Doptimize=ReleaseFast -Dtarget=${{ matrix.target }}
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp cli/zig-out/bin/idle-hook dist/${{ matrix.artifact }}
+          chmod +x dist/${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          for dir in dist/*/; do
+            artifact=$(basename "$dir")
+            cp "$dir$artifact" "release/$artifact"
+            chmod +x "release/$artifact"
+          done
+          cd release
+          sha256sum * > checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*
+          generate_release_notes: true
