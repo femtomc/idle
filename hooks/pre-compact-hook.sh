@@ -30,13 +30,13 @@ MODE=$(echo "$STATE" | jq -r '.stack[-1].mode // "unknown"')
 ITER=$(echo "$STATE" | jq -r '.stack[-1].iter // 0')
 MAX=$(echo "$STATE" | jq -r '.stack[-1].max // 0')
 ISSUE_ID=$(echo "$STATE" | jq -r '.stack[-1].issue_id // empty')
-PROMPT_FILE=$(echo "$STATE" | jq -r '.stack[-1].prompt_file // empty')
+PROMPT_BLOB=$(echo "$STATE" | jq -r '.stack[-1].prompt_blob // empty')
 
 # Build goal description
 if [[ -n "$ISSUE_ID" ]]; then
     GOAL="Working on issue: $ISSUE_ID"
-elif [[ -n "$PROMPT_FILE" ]] && [[ -f "$PROMPT_FILE" ]]; then
-    GOAL=$(head -1 "$PROMPT_FILE" | cut -c1-100)
+elif [[ -n "$PROMPT_BLOB" ]]; then
+    GOAL=$(jwz blob get "$PROMPT_BLOB" 2>/dev/null | head -1 | cut -c1-100)
 else
     GOAL="$MODE loop in progress"
 fi

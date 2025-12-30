@@ -7,6 +7,9 @@ set -e
 # Lock file for protecting concurrent jwz operations
 LOCK_FILE="${TMPDIR:-/tmp}/idle-loop.lock"
 
+# Config file locations (file-based escape hatches - no env vars needed)
+DISABLE_FILE=".idle-disabled"
+
 # Acquire lock with timeout (10 seconds)
 acquire_lock() {
     local max_wait=100
@@ -29,10 +32,18 @@ release_lock() {
 # Ensure lock is released on any exit (signal or script failure)
 trap 'release_lock' EXIT
 
+# Global config (set after reading jwz state)
+TRACE_ENABLED=false
+
+# Helper function to check if tracing is enabled
+# Called after state is loaded - reads from state config
+is_trace_enabled() {
+    [[ "$TRACE_ENABLED" == "true" ]]
+}
 
 # Helper function to emit trace events
 emit_trace_event() {
-    [[ "${IDLE_TRACE:-}" != "1" ]] && return
+    is_trace_enabled || return
     local event="$1"
     local details="${2:-{}}"
     local event_id="${RUN_ID:-unknown-$$}-${event}-${ITERATION:-0}"
@@ -62,8 +73,9 @@ if [[ -n "$CWD" ]]; then
     cd "$CWD"
 fi
 
-# Environment variable escape hatch
-if [[ "${IDLE_LOOP_DISABLE:-}" == "1" ]]; then
+# File-based escape hatch (replaces IDLE_LOOP_DISABLE env var)
+# Create .idle-disabled file in project root to disable loop
+if [[ -f "$DISABLE_FILE" ]]; then
     exit 0
 fi
 
@@ -86,7 +98,19 @@ fi
 
 # Parse state (either from jwz JSON or fallback to state file)
 if [[ -n "$STATE" ]] && echo "$STATE" | jq -e '.schema' >/dev/null 2>&1; then
-    # jwz JSON state
+    # jwz JSON state - extract config first (schema 2+)
+    # Config options: trace (enable trace events), disabled (bypass loop)
+    if echo "$STATE" | jq -e '.config' >/dev/null 2>&1; then
+        # Check if loop is disabled via jwz config
+        if [[ $(echo "$STATE" | jq -r '.config.disabled // false') == "true" ]]; then
+            exit 0
+        fi
+        # Set trace flag from config
+        if [[ $(echo "$STATE" | jq -r '.config.trace // false') == "true" ]]; then
+            TRACE_ENABLED=true
+        fi
+    fi
+
     STACK_LEN=$(echo "$STATE" | jq -r '.stack | length')
 
     if [[ "$STACK_LEN" == "0" ]] || [[ -z "$STACK_LEN" ]]; then
@@ -119,7 +143,7 @@ if [[ -n "$STATE" ]] && echo "$STATE" | jq -e '.schema' >/dev/null 2>&1; then
     MODE=$(echo "$TOP" | jq -r '.mode')
     ITERATION=$(echo "$TOP" | jq -r '.iter')
     MAX_ITERATIONS=$(echo "$TOP" | jq -r '.max')
-    PROMPT_FILE=$(echo "$TOP" | jq -r '.prompt_file // empty')
+    PROMPT_BLOB=$(echo "$TOP" | jq -r '.prompt_blob // empty')
     RUN_ID=$(echo "$STATE" | jq -r '.run_id')
 
     # Worktree context (for issue mode)
@@ -154,7 +178,7 @@ else
     MODE=$(parse_yaml_value "mode")
     ITERATION=$(parse_yaml_value "iteration")
     MAX_ITERATIONS=$(parse_yaml_value "max_iterations")
-    PROMPT_FILE=""
+    PROMPT_BLOB=""
 
     USE_JWZ=false
 
@@ -506,17 +530,15 @@ EOF
                 fi
             fi
 
-            # Create prompt from issue
-            STATE_DIR="/tmp/idle-$NEW_RUN_ID"
-            mkdir -p "$STATE_DIR"
-            tissue show "$NEXT_ISSUE_ID" > "$STATE_DIR/prompt.txt" 2>/dev/null || true
+            # Store prompt as blob
+            NEW_PROMPT_BLOB=$(tissue show "$NEXT_ISSUE_ID" 2>/dev/null | jwz blob put /dev/stdin)
 
             # Update state with new issue frame
             NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             NEW_FRAME=$(jq -n \
                 --arg id "$NEW_RUN_ID" \
                 --arg issue_id "$NEXT_ISSUE_ID" \
-                --arg prompt_file "$STATE_DIR/prompt.txt" \
+                --arg prompt_blob "$NEW_PROMPT_BLOB" \
                 --arg worktree_path "$NEW_WORKTREE_PATH" \
                 --arg branch "$NEW_BRANCH" \
                 --arg base_ref "$BASE_REF" \
@@ -525,7 +547,7 @@ EOF
                     mode: "issue",
                     iter: 1,
                     max: 10,
-                    prompt_file: $prompt_file,
+                    prompt_blob: $prompt_blob,
                     issue_id: $issue_id,
                     worktree_path: $worktree_path,
                     branch: $branch,
@@ -533,7 +555,7 @@ EOF
                 }')
 
             if acquire_lock; then
-                jwz post "loop:current" -m "{\"schema\":1,\"event\":\"STATE\",\"run_id\":\"$NEW_RUN_ID\",\"updated_at\":\"$NOW\",\"stack\":[$NEW_FRAME]}"
+                jwz post "loop:current" -m "{\"schema\":2,\"event\":\"STATE\",\"run_id\":\"$NEW_RUN_ID\",\"updated_at\":\"$NOW\",\"stack\":[$NEW_FRAME]}"
                 release_lock
             fi
 
@@ -541,7 +563,7 @@ EOF
             jwz post "issue:$NEXT_ISSUE_ID" -m "[loop] STARTED: Working in $NEW_WORKTREE_PATH" 2>/dev/null || true
 
             # Continue loop with next issue
-            NEXT_PROMPT=$(cat "$STATE_DIR/prompt.txt" 2>/dev/null || echo "Work on issue $NEXT_ISSUE_ID")
+            NEXT_PROMPT=$(jwz blob get "$NEW_PROMPT_BLOB" 2>/dev/null || echo "Work on issue $NEXT_ISSUE_ID")
             REASON="[NEXT ISSUE] Picked $NEXT_ISSUE_ID from tracker. Starting fresh iteration.
 
 WORKTREE: $NEW_WORKTREE_PATH
@@ -610,8 +632,8 @@ else
 fi
 
 # Get original prompt
-if [[ -n "$PROMPT_FILE" ]] && [[ -f "$PROMPT_FILE" ]]; then
-    ORIGINAL_PROMPT=$(cat "$PROMPT_FILE")
+if [[ -n "$PROMPT_BLOB" ]]; then
+    ORIGINAL_PROMPT=$(jwz blob get "$PROMPT_BLOB" 2>/dev/null)
 elif [[ "$USE_JWZ" != "true" ]] && [[ -f "$STATE_FILE" ]]; then
     # Extract from state file (everything after second ---)
     ORIGINAL_PROMPT=$(sed -n '/^---$/,/^---$/!p' "$STATE_FILE" | tail -n +1)

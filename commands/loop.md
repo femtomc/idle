@@ -97,28 +97,24 @@ if [[ -z "$ARGUMENTS" ]]; then
         [[ -f "$REPO_ROOT/.gitmodules" ]] && git -C "$WORKTREE_PATH" submodule update --init --recursive
     fi
 
-    # Create prompt from issue
-    STATE_DIR="/tmp/idle-$RUN_ID"
-    mkdir -p "$STATE_DIR"
-    tissue show "$ISSUE_ID" > "$STATE_DIR/prompt.txt"
+    # Store prompt as blob
+    PROMPT_BLOB=$(tissue show "$ISSUE_ID" | jwz blob put /dev/stdin)
 
     # Post initial state
     NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    jwz post "loop:current" -m "{\"schema\":1,\"event\":\"STATE\",\"run_id\":\"$RUN_ID\",\"updated_at\":\"$NOW\",\"stack\":[{\"id\":\"$RUN_ID\",\"mode\":\"issue\",\"iter\":1,\"max\":10,\"prompt_file\":\"$STATE_DIR/prompt.txt\",\"issue_id\":\"$ISSUE_ID\",\"worktree_path\":\"$WORKTREE_PATH\",\"branch\":\"$BRANCH\",\"base_ref\":\"$BASE_REF\"}]}"
+    jwz post "loop:current" -m "{\"schema\":2,\"event\":\"STATE\",\"run_id\":\"$RUN_ID\",\"updated_at\":\"$NOW\",\"stack\":[{\"id\":\"$RUN_ID\",\"mode\":\"issue\",\"iter\":1,\"max\":10,\"prompt_blob\":\"$PROMPT_BLOB\",\"issue_id\":\"$ISSUE_ID\",\"worktree_path\":\"$WORKTREE_PATH\",\"branch\":\"$BRANCH\",\"base_ref\":\"$BASE_REF\"}]}"
 
     jwz topic new "issue:$ISSUE_ID" 2>/dev/null || true
     jwz post "issue:$ISSUE_ID" -m "[loop] STARTED: Working in $WORKTREE_PATH"
 else
     # Task mode - simple iteration
     MODE="task"
-    STATE_DIR="/tmp/idle-$RUN_ID"
-    mkdir -p "$STATE_DIR"
-    cat > "$STATE_DIR/prompt.txt" <<PROMPT
-$ARGUMENTS
-PROMPT
+
+    # Store prompt as blob
+    PROMPT_BLOB=$(echo "$ARGUMENTS" | jwz blob put /dev/stdin)
 
     NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    jwz post "loop:current" -m "{\"schema\":1,\"event\":\"STATE\",\"run_id\":\"$RUN_ID\",\"updated_at\":\"$NOW\",\"stack\":[{\"id\":\"$RUN_ID\",\"mode\":\"task\",\"iter\":1,\"max\":10,\"prompt_file\":\"$STATE_DIR/prompt.txt\"}]}"
+    jwz post "loop:current" -m "{\"schema\":2,\"event\":\"STATE\",\"run_id\":\"$RUN_ID\",\"updated_at\":\"$NOW\",\"stack\":[{\"id\":\"$RUN_ID\",\"mode\":\"task\",\"iter\":1,\"max\":10,\"prompt_blob\":\"$PROMPT_BLOB\"}]}"
     jwz post "project:$(basename $PWD)" -m "[loop] STARTED: $ARGUMENTS"
 fi
 ```
@@ -188,5 +184,5 @@ tissue status "$ISSUE_ID" closed
 
 If stuck in an infinite loop:
 1. `/cancel` - Graceful cancellation
-2. `IDLE_LOOP_DISABLE=1 claude` - Environment bypass
+2. `touch .idle-disabled` - File-based bypass (remove after)
 3. Delete `.jwz/` directory - Manual reset

@@ -48,32 +48,31 @@ Stop the current iteration loop gracefully.
    fi
    ```
 
-3. **Clean up temp state** (if session ID known):
-   ```bash
-   if [ -n "$IDLE_SESSION_ID" ]; then
-       SID=$(printf '%s' "$IDLE_SESSION_ID" | tr -cd 'a-zA-Z0-9_-')
-       [ -n "$SID" ] && rm -rf "/tmp/idle-$SID"
-       unset IDLE_SESSION_ID
-   fi
-   ```
-
-4. **Summarize** what was accomplished before cancellation
+3. **Summarize** what was accomplished before cancellation
 
 ## Alternative Escape Methods
 
 If `/cancel` doesn't work:
 
-1. **Environment variable**: Start new session with loops disabled:
+1. **Disable file**: Create a disable marker to bypass loop on next session:
    ```bash
-   IDLE_LOOP_DISABLE=1 claude
+   touch .idle-disabled
+   claude
+   # After session, remove the marker:
+   rm .idle-disabled
    ```
 
-2. **Manual reset**: Delete the jwz topic:
+2. **jwz config**: Set disabled flag in state:
+   ```bash
+   jwz post "loop:current" -m '{"schema":2,"config":{"disabled":true},"stack":[]}'
+   ```
+
+3. **Manual reset**: Delete the jwz topic:
    ```bash
    rm -rf .jwz/topics/loop:current/
    ```
 
-3. **Nuclear option**: Delete all jwz state:
+4. **Nuclear option**: Delete all jwz state:
    ```bash
    rm -rf .jwz/
    ```

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Environment variables removed** - All config now via jwz state or files
+  - `IDLE_LOOP_DISABLE` → `.idle-disabled` file or `config.disabled` in state
+  - `IDLE_TRACE` → `config.trace` in state
+  - `IDLE_DEPTH` → Task contract `depth` field only
+- **Prompts stored as jwz blobs** - No more `/tmp/idle-*` directories
+  - `prompt_file` field replaced with `prompt_blob` (sha256 hash)
+  - State schema upgraded to version 2
+
 ## [1.3.0] - 2025-12-29
 
 ### Added

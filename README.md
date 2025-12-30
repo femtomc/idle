@@ -228,7 +228,8 @@ State exists in jwz but Claude is not running.
 
 **Fix:**
 ```shell
-IDLE_LOOP_DISABLE=1 claude  # Bypass loop hook
+touch .idle-disabled && claude  # Bypass loop hook
+rm .idle-disabled               # Remove after session
 ```
 
 Or reset all state:

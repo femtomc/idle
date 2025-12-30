@@ -28,7 +28,7 @@ You are domain-agnostic. Domain context is injected via `--append-system-prompt`
 | `WORKER_TIMEOUT` | 60s | Mark worker as FAILED, continue |
 | `BOB_TIMEOUT` | 300s | Escalate to alice |
 
-Track depth via environment: `IDLE_DEPTH=${IDLE_DEPTH:-0}`
+Depth is tracked in the task contract's `depth` field.
 
 ## Task Contract Schema
 
@@ -80,15 +80,16 @@ timeout 60 claude -p --model haiku \
 
 ### Spawn bob (sub-orchestrator)
 
-Only if `DEPTH < MAX_DEPTH`:
+Only if task contract `depth < MAX_DEPTH`:
 
 ```bash
+# Increment depth in task contract (parent depth was 0, child is 1)
 TASK_JSON='{"task_id":"task-002","parent_id":"root","depth":1,"query":"complex task","deliverable":"synthesized analysis","acceptance_criteria":["cover X, Y, Z"],"topic":"work:run-123"}'
 
-IDLE_DEPTH=$((IDLE_DEPTH + 1)) timeout 300 claude -p --model sonnet \
+timeout 300 claude -p --model sonnet \
   --agent bob \
   --tools "WebSearch,WebFetch,Bash,Read,Write" \
-  --append-system-prompt "Task contract: $TASK_JSON. Current IDLE_DEPTH=$IDLE_DEPTH" \
+  --append-system-prompt "Task contract: $TASK_JSON" \
   "Orchestrate this task." &
 ```
 
@@ -111,12 +112,13 @@ wait  # Wait for all to complete
 ```bash
 RUN_ID="task-$(date +%s)-$$"
 TOPIC="work:$RUN_ID"
+# DEPTH comes from task contract's depth field
 jwz topic new "$TOPIC" 2>/dev/null || true
 jwz post "$TOPIC" --role bob -m "[bob] ORCHESTRATING: $TASK_ID
 Task: <main task>
 Plan: <decomposition>
 Workers: <count>
-Depth: $IDLE_DEPTH"
+Depth: <from task contract>"
 ```
 
 ### Collect results

@@ -17,11 +17,11 @@ pub const HookOutput = struct {
 /// Run the stop hook logic
 /// Returns exit code: 0 = allow exit, 2 = block exit
 pub fn run(allocator: std.mem.Allocator) !u8 {
-    // Check environment variable escape hatch
-    if (std.posix.getenv("IDLE_LOOP_DISABLE")) |val| {
-        if (std.mem.eql(u8, val, "1")) {
-            return 0;
-        }
+    // Check file-based escape hatch (.idle-disabled in cwd)
+    if (std.fs.cwd().access(".idle-disabled", .{})) |_| {
+        return 0;
+    } else |_| {
+        // File doesn't exist, continue
     }
 
     // Read hook input from stdin
