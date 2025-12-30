@@ -5,16 +5,32 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     // =========================================================================
-    // SQLite (shared by zawinski and tissue)
+    // Dependencies from build.zig.zon
+    // =========================================================================
+
+    const zawinski_dep = b.dependency("zawinski", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    const zawinski_mod = zawinski_dep.module("zawinski");
+
+    const tissue_dep = b.dependency("tissue", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    const tissue_mod = tissue_dep.module("tissue");
+
+    // =========================================================================
+    // SQLite (built from zawinski's vendored copy)
     // =========================================================================
 
     const sqlite_mod = b.createModule(.{
         .target = target,
         .optimize = optimize,
     });
-    sqlite_mod.addIncludePath(b.path("../../zawinski/vendor/sqlite"));
+    sqlite_mod.addIncludePath(zawinski_dep.path("vendor/sqlite"));
     sqlite_mod.addCSourceFile(.{
-        .file = b.path("../../zawinski/vendor/sqlite/sqlite3.c"),
+        .file = zawinski_dep.path("vendor/sqlite/sqlite3.c"),
         .flags = &.{
             "-DSQLITE_ENABLE_FTS5",
             "-DSQLITE_ENABLE_JSON1",
@@ -29,28 +45,6 @@ pub fn build(b: *std.Build) void {
     sqlite.linkLibC();
 
     // =========================================================================
-    // zawinski (messaging)
-    // =========================================================================
-
-    const zawinski_mod = b.addModule("zawinski", .{
-        .root_source_file = b.path("../../zawinski/src/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    zawinski_mod.addIncludePath(b.path("../../zawinski/vendor/sqlite"));
-
-    // =========================================================================
-    // tissue (issues)
-    // =========================================================================
-
-    const tissue_mod = b.addModule("tissue", .{
-        .root_source_file = b.path("../../tissue/src/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    tissue_mod.addIncludePath(b.path("../../tissue/vendor/sqlite"));
-
-    // =========================================================================
     // idle library module (our core logic)
     // =========================================================================
 
@@ -58,7 +52,12 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/lib/root.zig"),
         .target = target,
         .optimize = optimize,
+        .imports = &.{
+            .{ .name = "zawinski", .module = zawinski_mod },
+            .{ .name = "tissue", .module = tissue_mod },
+        },
     });
+    lib_mod.addIncludePath(zawinski_dep.path("vendor/sqlite"));
 
     // =========================================================================
     // Executable: idle-hook
@@ -77,7 +76,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    exe.root_module.addIncludePath(b.path("../../zawinski/vendor/sqlite"));
+    exe.root_module.addIncludePath(zawinski_dep.path("vendor/sqlite"));
     exe.linkLibrary(sqlite);
 
     b.installArtifact(exe);
@@ -101,6 +100,7 @@ pub fn build(b: *std.Build) void {
     const lib_tests = b.addTest(.{
         .root_module = lib_mod,
     });
+    lib_tests.linkLibrary(sqlite);
     const run_lib_tests = b.addRunArtifact(lib_tests);
 
     const test_step = b.step("test", "Run unit tests");

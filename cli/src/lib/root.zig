@@ -8,6 +8,12 @@ pub const event_parser = @import("event_parser.zig");
 pub const transcript = @import("transcript.zig");
 pub const safety = @import("safety.zig");
 
+// CLI commands
+pub const spawn = @import("spawn.zig");
+pub const emit = @import("emit.zig");
+pub const doctor = @import("doctor.zig");
+pub const worktree = @import("worktree.zig");
+
 // Re-export common types
 pub const State = state_machine.State;
 pub const Mode = state_machine.Mode;

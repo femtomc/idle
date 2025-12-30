@@ -1,0 +1,22 @@
+.{
+    .name = .idle_hook,
+    .version = "0.1.0",
+    .fingerprint = 0x6918f13b13924afb,
+
+    .dependencies = .{
+        .zawinski = .{
+            .url = "git+https://github.com/evil-mind-evil-sword/zawinski.git#main",
+            .hash = "zawinski-0.1.0-cOuYlI0ZlgBwNsmcZ2h4xOtMAQ1FMsIBiWqKgdBXkwVr",
+        },
+        .tissue = .{
+            .url = "git+https://github.com/evil-mind-evil-sword/tissue.git#main",
+            .hash = "tissue-0.1.0-t39Il2dslwCWG7BH0qXRqCLGlGwsMO70z6_2Y7QVbJqk",
+        },
+    },
+
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
