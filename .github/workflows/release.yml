@@ -8,139 +8,36 @@ on:
 permissions:
   contents: write
 
-env:
-  ZIG_VERSION: "0.15.2"
-
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-linux
-            artifact: idle-linux-x86_64
-            zig_platform: x86_64-linux
-          - os: macos-latest
-            target: x86_64-macos
-            artifact: idle-macos-x86_64
-            zig_platform: aarch64-macos
-          - os: macos-latest
-            target: aarch64-macos
-            artifact: idle-macos-aarch64
-            zig_platform: aarch64-macos
-
-    runs-on: ${{ matrix.os }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Zig
-        run: |
-          curl -L "https://ziglang.org/download/${{ env.ZIG_VERSION }}/zig-${{ matrix.zig_platform }}-${{ env.ZIG_VERSION }}.tar.xz" | tar -xJ
-          echo "$PWD/zig-${{ matrix.zig_platform }}-${{ env.ZIG_VERSION }}" >> $GITHUB_PATH
-
-      - name: Verify Zig
-        run: zig version
-
-      - name: Build
-        working-directory: cli
-        run: zig build -Doptimize=ReleaseFast -Dtarget=${{ matrix.target }}
-
-      - name: Package
-        run: |
-          mkdir -p dist
-          cp cli/zig-out/bin/idle dist/${{ matrix.artifact }}
-          chmod +x dist/${{ matrix.artifact }}
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: dist/${{ matrix.artifact }}
-
   release:
-    needs: build
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
-
-      - name: Prepare release assets
+      - name: Package plugin
         run: |
           mkdir -p release
-          for dir in dist/*/; do
-            artifact=$(basename "$dir")
-            cp "$dir$artifact" "release/$artifact"
-            chmod +x "release/$artifact"
-          done
+
+          # Create plugin tarball (excludes .git, tests, docs)
+          tar -czf release/idle-plugin.tar.gz \
+            --exclude='.git*' \
+            --exclude='tests' \
+            --exclude='.github' \
+            .claude-plugin \
+            agents \
+            hooks \
+            skills \
+            README.md \
+            LICENSE
+
+          # Copy install script
+          cp install.sh release/install.sh
+          chmod +x release/install.sh
+
+          # Create checksums
           cd release
           sha256sum * > checksums.txt
-
-      - name: Create install script
-        run: |
-          cat > release/install.sh << 'EOF'
-          #!/bin/sh
-          set -e
-
-          # idle installer
-          # Usage: curl -fsSL https://github.com/evil-mind-evil-sword/idle/releases/latest/download/install.sh | sh
-
-          REPO="evil-mind-evil-sword/idle"
-          INSTALL_DIR="${IDLE_INSTALL_DIR:-$HOME/.local/bin}"
-
-          # Detect OS and architecture
-          OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-          ARCH=$(uname -m)
-
-          case "$OS" in
-            linux) OS="linux" ;;
-            darwin) OS="macos" ;;
-            *) echo "Unsupported OS: $OS"; exit 1 ;;
-          esac
-
-          case "$ARCH" in
-            x86_64|amd64) ARCH="x86_64" ;;
-            aarch64|arm64) ARCH="aarch64" ;;
-            *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
-          esac
-
-          BINARY="idle-${OS}-${ARCH}"
-
-          # Get version
-          if [ -n "$IDLE_VERSION" ]; then
-            VERSION="$IDLE_VERSION"
-          else
-            VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
-          fi
-
-          URL="https://github.com/${REPO}/releases/download/${VERSION}/${BINARY}"
-
-          echo "Installing idle ${VERSION} for ${OS}/${ARCH}..."
-
-          mkdir -p "$INSTALL_DIR"
-          curl -fsSL "$URL" -o "$INSTALL_DIR/idle"
-          chmod +x "$INSTALL_DIR/idle"
-
-          echo "idle installed to $INSTALL_DIR/idle"
-
-          if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
-            echo ""
-            echo "Add to your PATH:"
-            echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
-          fi
-
-          echo ""
-          echo "Get started:"
-          echo "  /init   - Initialize project with planning workflow"
-          echo "  /loop   - Iterate on a task until complete"
-          echo "  /cancel - Stop the current loop"
-          EOF
-          chmod +x release/install.sh
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

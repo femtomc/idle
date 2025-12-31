@@ -7,19 +7,24 @@ Every exit requires alice review. No issues = exit allowed.
 ## How It Works
 
 ```
-Agent works → Stop hook → "invoke alice" → alice reviews → issues? → block/allow
+Agent works → tries to exit → Stop hook → alice reviewed? → block/allow
 ```
 
-1. **Stop hook** directs agent to invoke alice via Task tool
-2. **alice** reviews the work, creates `alice-review` issues for problems
-3. **SubagentStop** detects alice completion, posts status to jwz
-4. **No issues** = exit allowed. **Issues exist** = blocked until fixed.
+1. **Stop hook** checks for alice review decision in jwz
+2. If no review: blocks exit, tells agent to run `/alice`
+3. **alice** reviews the work, creates `alice-review` issues for problems
+4. **No open issues** = exit allowed. **Issues exist** = keep working.
 
 ## Install
 
 ```sh
 curl -fsSL https://github.com/evil-mind-evil-sword/idle/releases/latest/download/install.sh | sh
 ```
+
+This installs:
+- `jwz` - Agent messaging
+- `tissue` - Issue tracking
+- The idle plugin (registered with Claude Code)
 
 ## Skills
 
@@ -33,8 +38,9 @@ curl -fsSL https://github.com/evil-mind-evil-sword/idle/releases/latest/download
 
 ## Dependencies
 
-- `claude` - Claude Code CLI
-- `tissue` - Issue tracking
+- `jwz` - Agent messaging ([zawinski](https://github.com/femtomc/zawinski))
+- `tissue` - Issue tracking ([tissue](https://github.com/femtomc/tissue))
+- `jq` - JSON parsing
 
 ## License
 

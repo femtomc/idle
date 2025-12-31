@@ -12,7 +12,14 @@ Thank you for your interest in contributing to idle!
 
 2. Install dependencies:
    ```shell
-   ./install.sh
+   # jwz (messaging)
+   # See: https://github.com/femtomc/zawinski
+
+   # tissue (issue tracking)
+   # See: https://github.com/femtomc/tissue
+
+   # jq (JSON parsing)
+   brew install jq  # or apt-get install jq
    ```
 
 3. Run Claude Code with the plugin:
@@ -20,10 +27,10 @@ Thank you for your interest in contributing to idle!
    claude --plugin-dir .
    ```
 
-4. Test that agents are available:
+4. Test the stop hook:
    ```shell
-   # Test alice (deep reasoning)
-   "I need help with a design decision"
+   # The stop hook will block exit until alice reviews
+   # Run /alice to trigger a review
    ```
 
 ## Adding a New Agent

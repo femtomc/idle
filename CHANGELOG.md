@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2025-12-31
+
+### Changed
+
+- **Simplified to pure Bash hooks** - Removed Zig CLI entirely
+  - Stop hook now implemented in `hooks/stop-hook.sh`
+  - No binary to install - plugin is just files
+- **Always-on quality gate** - No loop mode, just alice review on every exit
+  - Stop hook checks jwz for alice decision
+  - Stop hook checks tissue for open `alice-review` issues
+  - Blocks exit until alice approves or issues are resolved
+- **Simplified release workflow** - Packages plugin files, no cross-compilation
+
+### Removed
+
+- **Zig CLI** - `cli/` directory and all Zig code removed
+- **Loop mode** - No more `/loop`, `/cancel`, iteration tracking
+- **Complex state management** - No stack frames, completion signals, checkpoints
+- **Binary releases** - No platform-specific binaries to download
+
+### Updated
+
+- `docs/architecture.md` - Reflects new bash-based hook system
+- `README.md` - Simplified install instructions (no binary)
+- `.github/workflows/release.yml` - Packages plugin tarball instead of building binaries
+
 ## [2.1.0] - 2025-12-31
 
 ### Changed
