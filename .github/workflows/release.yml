@@ -33,8 +33,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Setup Zig
         run: |
@@ -82,6 +80,9 @@ jobs:
           done
           cd release
           sha256sum * > checksums.txt
+
+      - name: Copy install script
+        run: cp install.sh release/install.sh
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
