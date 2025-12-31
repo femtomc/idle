@@ -85,9 +85,8 @@ jobs:
         run: |
           cat > release/install.sh << 'INSTALLER_EOF'
           #!/bin/sh
-          set -e
-
           # idle installer - smart dependency management
+          # Note: No set -e so we can handle errors gracefully
           # Usage: curl -fsSL https://github.com/evil-mind-evil-sword/idle/releases/latest/download/install.sh | sh
 
           # Colors
@@ -153,7 +152,10 @@ jobs:
                   info "Installing $name..."
               fi
 
-              eval "$install_cmd"
+              if ! eval "$install_cmd"; then
+                  warn "$name installation failed"
+                  return
+              fi
 
               new_version=$(get_installed_version "$cmd")
               if [ -n "$new_version" ]; then
@@ -312,14 +314,22 @@ jobs:
               install_gh
 
               # emes tools (with version checking)
+              # Use ~/.local/bin to avoid sudo requirements
+              LOCAL_BIN="$HOME/.local/bin"
+              mkdir -p "$LOCAL_BIN"
+              export PATH="$LOCAL_BIN:$PATH"
+
+              # tissue
               install_tool "tissue" "tissue" "evil-mind-evil-sword/tissue" \
-                  "curl -fsSL https://github.com/evil-mind-evil-sword/tissue/releases/latest/download/install.sh | sh"
+                  "TISSUE_INSTALL_DIR=$LOCAL_BIN curl -fsSL https://github.com/evil-mind-evil-sword/tissue/releases/latest/download/install.sh | sh"
 
+              # jwz (zawinski)
               install_tool "jwz" "jwz" "evil-mind-evil-sword/zawinski" \
-                  "curl -fsSL https://github.com/evil-mind-evil-sword/zawinski/releases/latest/download/install.sh | sh"
+                  "JWZ_INSTALL_DIR=$LOCAL_BIN curl -fsSL https://github.com/evil-mind-evil-sword/zawinski/releases/latest/download/install.sh | sh"
 
+              # bibval
               install_tool "bibval" "bibval" "evil-mind-evil-sword/bibval" \
-                  "curl -fsSL https://github.com/evil-mind-evil-sword/bibval/releases/latest/download/install.sh | sh"
+                  "BIBVAL_INSTALL_DIR=$LOCAL_BIN curl -fsSL https://github.com/evil-mind-evil-sword/bibval/releases/latest/download/install.sh | sh"
 
               printf "\n"
               info "Setting up Claude Code plugin..."
