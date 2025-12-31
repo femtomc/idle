@@ -7,37 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2025-12-30
+
 ### Added
 
-- **Alice review on completion signals** - Stop hook now triggers alice review
+- **Alice review on completion signals** - Stop hook triggers alice review
   - When Claude signals `COMPLETE` or `STUCK`, blocks exit for alice review
   - `reviewed` flag in StackFrame tracks review state
   - After alice review, loop can complete normally
 - **Enhanced SessionStart hook** - Injects full loop context
   - Shows active loop state (mode, iteration, issue, worktree, branch)
   - Comprehensive alice usage guidance
-- **Enhanced SubagentStop hook** - Post-alice guidance
-  - After alice completes, injects next steps for acting on review
 - **Enhanced PreCompact hook** - Alice reminder in recovery anchor
   - Anchor JSON includes `alice_reminder` field
   - Output reminds about alice availability before compaction
 
 ### Removed
 
+- **Hooks simplified** - Removed SubagentStop and PreToolUse hooks
+  - SubagentStop (alice second-opinion enforcement) removed
+  - PreToolUse (Bash safety guardrails) removed
+  - safety.zig module removed
+- **TUI module removed** - Duplicate code in `tui/` directory removed
+- **REFACTOR_PLAN.md removed** - Obsolete planning document
 - **Agents removed**: `bob` (orchestrator) and `charlie` (worker) agents removed
   - spawn.zig module removed
   - spawn command removed from CLI
-  - Documentation updated to reflect single-agent (alice) architecture
 
 ### Changed
 
-- **Environment variables removed** - All config now via jwz state or files
-  - `IDLE_LOOP_DISABLE` → `.idle-disabled` file or `config.disabled` in state
-  - `IDLE_TRACE` → `config.trace` in state
-  - `IDLE_DEPTH` → Task contract `depth` field only
-- **Prompts stored as jwz blobs** - No more `/tmp/idle-*` directories
-  - `prompt_file` field replaced with `prompt_blob` (sha256 hash)
-  - State schema upgraded to version 2
+- **Architecture docs updated** - Reflects Zig CLI hooks, removes stale references
+- **3 hooks remain**: Stop, SessionStart, PreCompact
 
 ## [1.3.0] - 2025-12-29
 
