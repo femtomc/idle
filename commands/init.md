@@ -13,7 +13,7 @@ Initialize a project with idle infrastructure and create an actionable plan.
 Initialize the idle infrastructure:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/idle" init-loop
+idle init-loop
 ```
 
 This creates `.zawinski/` (messaging) and `.tissue/` (issues) if needed.
