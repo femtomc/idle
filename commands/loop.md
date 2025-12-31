@@ -32,9 +32,18 @@ Signal completion status in your response:
 
 | Signal | Meaning |
 |--------|---------|
-| `<loop-done>COMPLETE</loop-done>` | Task finished successfully |
+| `<loop-done>COMPLETE</loop-done>` | **Original task** finished successfully |
 | `<loop-done>STUCK</loop-done>` | Cannot make progress |
 | `<loop-done>MAX_ITERATIONS</loop-done>` | Hit iteration limit |
+
+**IMPORTANT**: `COMPLETE` means the ENTIRE `/loop <task>` is done, not just "I finished this iteration's work". If there's more to do on the original task, keep iterating—don't signal COMPLETE.
+
+Wrong:
+- Closed 3 issues, 5 remain → signal COMPLETE ❌
+
+Right:
+- Closed 3 issues, 5 remain → keep working
+- All work for original task done → signal COMPLETE ✓
 
 ## Alice Review
 
