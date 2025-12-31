@@ -66,7 +66,7 @@ pub fn main() !u8 {
     } else if (std.mem.eql(u8, command, "issues")) {
         return runIssues(allocator, args[2..]);
     } else if (std.mem.eql(u8, command, "version")) {
-        try writeStdout("idle 1.6.0\n");
+        try writeStdout("idle 1.6.2\n");
         return 0;
     } else if (std.mem.eql(u8, command, "help") or std.mem.eql(u8, command, "--help") or std.mem.eql(u8, command, "-h")) {
         try writeStdout(usage);
