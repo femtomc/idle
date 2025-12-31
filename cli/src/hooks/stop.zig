@@ -120,7 +120,7 @@ pub fn run(allocator: std.mem.Allocator) !u8 {
                         \\
                         \\After alice's review:
                         \\- If APPROVE: Signal completion again
-                        \\- If NEEDS_WORK: Address each issue in `tissue list -t alice-review --status open`
+                        \\- If NEEDS_WORK: Address each issue tagged `alice-review` (run `tissue list` to see all)
                         \\  - Fix the issue
                         \\  - Close it: `tissue status <id> closed`
                         \\  - Repeat until all alice-review issues are closed
@@ -173,7 +173,7 @@ pub fn run(allocator: std.mem.Allocator) !u8 {
                         \\
                         \\Alice said NEEDS_WORK. You must fix all issues before completion is allowed.
                         \\
-                        \\Check remaining issues: `tissue list -t alice-review --status open`
+                        \\Check remaining issues: `tissue list` (look for open issues tagged `alice-review`)
                         \\
                         \\For each issue:
                         \\1. Fix the problem
@@ -326,14 +326,18 @@ fn postJwzMessage(allocator: std.mem.Allocator, topic: []const u8, message: []co
     defer store.deinit();
 
     // Ensure topic exists (create if needed)
-    _ = store.fetchTopic(topic) catch |err| {
+    if (store.fetchTopic(topic)) |*fetched_topic| {
+        // Topic exists, free the allocated strings
+        var t = fetched_topic.*;
+        t.deinit(allocator);
+    } else |err| {
         if (err == zawinski.store.StoreError.TopicNotFound) {
             const topic_id = store.createTopic(topic, "") catch return error.TopicCreateFailed;
             allocator.free(topic_id);
         } else {
             return error.TopicFetchFailed;
         }
-    };
+    }
 
     // Create sender identity
     const sender = zawinski.store.Sender{
