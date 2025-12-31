@@ -13,7 +13,7 @@ Second opinions and specialized reasoning via OpenAI's Codex CLI.
 - Code review from an independent perspective
 - Complex reasoning that benefits from o3/o4-mini's chain-of-thought
 - Cross-validating alice's hypotheses
-- Research validation (checking bob's findings)
+- Research validation
 
 **Don't use for**: Simple questions that don't need a second perspective. Just ask directly.
 
@@ -378,7 +378,7 @@ programming system achieves asymptotically optimal inference for conjugate model
 Review the proof sketch. Are the assumptions realistic? Missing cases?"
 
 # Experimental methodology
-codex exec -s read-only -m gpt-5.2 -c reasoning=xhigh "Bob's benchmark shows 3x
+codex exec -s read-only -m gpt-5.2 -c reasoning=xhigh "This benchmark shows 3x
 speedup vs baseline. Review methodology: are we comparing fairly?
 What confounds might explain the difference?"
 ```

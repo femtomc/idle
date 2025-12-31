@@ -8,8 +8,8 @@ pub fn run(_: std.mem.Allocator) !u8 {
     const stdout = &stdout_writer.interface;
 
     try stdout.writeAll(
-        \\idle agents: idle:alice (deep reasoning, quality gates), idle:bob (external research)
-        \\Workflow: When stuck on design -> consult idle:alice; For research -> idle:bob
+        \\idle agents: idle:alice (deep reasoning, quality gates)
+        \\Workflow: When stuck on design or need second opinion -> consult idle:alice
         \\
     );
     try stdout.flush();

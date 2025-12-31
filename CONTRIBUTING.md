@@ -24,9 +24,6 @@ Thank you for your interest in contributing to idle!
    ```shell
    # Test alice (deep reasoning)
    "I need help with a design decision"
-
-   # Test bob (research)
-   "How does React Query handle cache invalidation?"
    ```
 
 ## Adding a New Agent
@@ -54,7 +51,7 @@ Thank you for your interest in contributing to idle!
 
 4. The agent becomes available as `idle:your-agent`
 
-See `agents/bob.md` for a simple example or `agents/alice.md` for a complex one.
+See `agents/alice.md` for an example.
 
 ## Adding a New Skill
 
@@ -108,7 +105,7 @@ Agents communicate via zawinski messaging (`jwz` CLI):
 Examples:
 [alice] ANALYSIS: Auth flow race condition
 [alice] DECISION: Use JWT with refresh tokens
-[bob] RESEARCH: OAuth 2.0 best practices
+[loop] LANDED: issue-123
 ```
 
 ## Testing

@@ -35,14 +35,10 @@ Then in Claude Code:
 | Agent | Model | Second Opinion | Description |
 |-------|-------|----------------|-------------|
 | `alice` | opus | codex or claude | Deep reasoning, quality gates, design decisions |
-| `bob` | opus | — | Task orchestrator: decomposes, spawns workers, synthesizes |
-| `charlie` | haiku | — | Leaf worker: executes focused tasks, posts to jwz |
 
 ### How it works
 
-idle acts as an "outer harness" for Claude Code that orchestrates specialized agents within a continuous loop. bob and charlie implement a **dynamic programming pattern**: bob decomposes complex tasks into subtasks, spawns charlie workers in parallel, coordinates via jwz messaging, and synthesizes results. alice provides deep reasoning with multi-model consensus.
-
-**Domain specialization via skills**: bob and charlie are domain-agnostic orchestrators/workers. Skills (like `/researching`) inject domain-specific context (decomposition strategies, synthesis rules, output formats) via `--append-system-prompt`.
+idle acts as an "outer harness" for Claude Code that orchestrates agents within a continuous loop. alice provides deep reasoning with multi-model consensus.
 
 When the primary agent needs deep analysis or quality validation, alice consults a secondary model. If an external model (Codex) is available, it provides an independent perspective. If not, alice falls back to `claude -p`, creating a fresh context to break the self-refinement loop.
 
@@ -50,23 +46,20 @@ When the primary agent needs deep analysis or quality validation, alice consults
 
 - **Self-Bias:** Single models tend to validate their own errors when asked to double-check. Consensus forces an external review to break this validation loop.
 - **Correlated Failures:** Distinct model architectures have different blind spots. Consensus between Claude and Codex catches edge cases that a single model family might miss.
-- **Efficiency:** The harness routes simple tasks to bob (fast, cheap) and reserves the expensive consensus process for alice's complex reasoning steps.
 
-See [workflows/README.md](workflows/README.md) for the three-layer architecture.
+See [workflows/README.md](workflows/README.md) for the architecture.
 
 ## Skills
 
-Auto-discovered capabilities that compose agents for domain-specific tasks:
+Auto-discovered capabilities for domain-specific tasks:
 
 | Skill | Description |
 |-------|-------------|
 | `messaging` | Post/read jwz messages for agent coordination |
 | `issue-tracking` | Create/manage tissue issues for work tracking |
-| `researching` | Web research with quality gate (bob → charlie workers → alice review) |
-| `technical-writing` | Document drafting with multi-layer review (bob → alice) |
-| `bib-managing` | Bibliography curation and validation (bob → bibval → alice) |
-
-Skills inject domain-specific context into the generic bob/charlie agents.
+| `researching` | Web research with quality gate (alice review) |
+| `technical-writing` | Document drafting with review |
+| `bib-managing` | Bibliography curation and validation (bibval → alice) |
 
 ## Commands
 
@@ -154,11 +147,7 @@ tissue new "Refactor database queries" -p 2 -t tech-debt
 
 # Comprehensive research with quality gate
 /researching OAuth 2.0 best practices for SPAs
-# → bob orchestrates charlie workers, alice validates, produces verified artifact
-
-# Or orchestrate any complex task
-"Review the authentication module for security issues"
-# → bob decomposes into subtasks, charlie workers execute, bob synthesizes
+# → alice validates, produces verified artifact
 ```
 
 ## Observability

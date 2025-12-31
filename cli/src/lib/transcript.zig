@@ -149,7 +149,7 @@ pub fn isAliceOutput(text: []const u8) bool {
     if (std.mem.indexOf(u8, text, "## Hypotheses") != null and
         std.mem.indexOf(u8, text, "## Recommendation") != null) return true;
 
-    // Check for quality gate mode (reviewing bob's work)
+    // Check for quality gate mode
     if (std.mem.indexOf(u8, text, "Verdict: PASS") != null) return true;
     if (std.mem.indexOf(u8, text, "Verdict: REVISE") != null) return true;
 

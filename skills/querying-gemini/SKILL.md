@@ -389,13 +389,13 @@ jwz search "SECOND_OPINION:" | grep "<topic>"
 
 ### With Researching Skill
 
-Gemini can validate bob's research alongside alice's review:
+Gemini can validate research alongside alice's review:
 
 ```
-bob (research) ──→ alice (quality gate)
-                        │
-                        ▼
-                  gemini (fact-check) ──→ alice (synthesize)
+research ──→ alice (quality gate)
+                   │
+                   ▼
+             gemini (fact-check) ──→ alice (synthesize)
 ```
 
 ### Priority Order for Second Opinions
@@ -410,7 +410,7 @@ bob (research) ──→ alice (quality gate)
 
 ```bash
 # Semantics verification
-gemini -s -m gemini-2.5-pro "Bob's formalization claims this effect system
+gemini -s -m gemini-2.5-pro "This formalization claims the effect system
 is sound with respect to the operational semantics. The proof uses
 logical relations. Verify the fundamental lemma holds."
 
@@ -440,7 +440,7 @@ allocator and the slab cache."
 ```bash
 # Literature coverage check
 gemini -s -m gemini-2.5-pro "We're writing a paper on probabilistic
-programming inference. Bob's related work cites 15 papers.
+programming inference. The related work section cites 15 papers.
 What seminal works are missing? Check against POPL/PLDI/ICFP
 proceedings from 2018-2024."
 

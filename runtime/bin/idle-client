@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""
+Simple client for idle runtime daemon.
+
+Usage:
+    idle-client ping
+    idle-client session_start <session_id>
+    idle-client session_stop <session_id>
+    idle-client loop_event <event> [--session <id>] [--run <id>]
+    idle-client query loop_state
+"""
+
+import socket
+import struct
+import json
+import sys
+import os
+
+SOCKET_PATH = os.environ.get('IDLE_SOCKET', os.path.expanduser('~/.idle/runtime.sock'))
+
+def send_message(msg: dict) -> dict:
+    """Send a message to the daemon and get response."""
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        sock.connect(SOCKET_PATH)
+
+        # Send length-prefixed JSON
+        data = json.dumps(msg).encode()
+        sock.send(struct.pack('>I', len(data)) + data)
+
+        # Receive response
+        length_bytes = sock.recv(4)
+        if not length_bytes:
+            return {"type": "error", "error": "no_response"}
+        length = struct.unpack('>I', length_bytes)[0]
+        response = sock.recv(length)
+        return json.loads(response)
+    finally:
+        sock.close()
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+
+    cmd = sys.argv[1]
+
+    if cmd == 'ping':
+        result = send_message({'type': 'ping'})
+
+    elif cmd == 'session_start':
+        if len(sys.argv) < 3:
+            print("Usage: idle-client session_start <session_id>")
+            sys.exit(1)
+        result = send_message({
+            'type': 'session_start',
+            'session_id': sys.argv[2]
+        })
+
+    elif cmd == 'session_stop':
+        if len(sys.argv) < 3:
+            print("Usage: idle-client session_stop <session_id>")
+            sys.exit(1)
+        result = send_message({
+            'type': 'session_stop',
+            'session_id': sys.argv[2]
+        })
+
+    elif cmd == 'loop_event':
+        if len(sys.argv) < 3:
+            print("Usage: idle-client loop_event <event>")
+            sys.exit(1)
+        msg = {
+            'type': 'loop_event',
+            'event': sys.argv[2]
+        }
+        # Parse optional args
+        i = 3
+        while i < len(sys.argv):
+            if sys.argv[i] == '--session' and i + 1 < len(sys.argv):
+                msg['session_id'] = sys.argv[i + 1]
+                i += 2
+            elif sys.argv[i] == '--run' and i + 1 < len(sys.argv):
+                msg['run_id'] = sys.argv[i + 1]
+                i += 2
+            else:
+                i += 1
+        result = send_message(msg)
+
+    elif cmd == 'query':
+        if len(sys.argv) < 3:
+            print("Usage: idle-client query <pattern>")
+            sys.exit(1)
+        result = send_message({
+            'type': 'query',
+            'pattern': sys.argv[2]
+        })
+
+    else:
+        print(f"Unknown command: {cmd}")
+        sys.exit(1)
+
+    print(json.dumps(result, indent=2))
+
+    # Exit with error if response indicates failure
+    if result.get('type') == 'error':
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main()

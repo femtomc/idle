@@ -9,7 +9,6 @@ pub const transcript = @import("transcript.zig");
 pub const safety = @import("safety.zig");
 
 // CLI commands
-pub const spawn = @import("spawn.zig");
 pub const emit = @import("emit.zig");
 pub const doctor = @import("doctor.zig");
 pub const worktree = @import("worktree.zig");

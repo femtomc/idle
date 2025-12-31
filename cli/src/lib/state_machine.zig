@@ -76,6 +76,8 @@ pub const StackFrame = struct {
     base_ref: ?[]const u8 = null,
     // grind mode fields
     filter: ?[]const u8 = null,
+    // review tracking - true if alice has reviewed this iteration's completion
+    reviewed: bool = false,
 };
 
 /// Loop state parsed from jwz or state file

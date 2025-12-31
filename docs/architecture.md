@@ -21,16 +21,16 @@ Three principles guide idle's architecture:
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │                     idle plugin                          │  │
 │  │                                                          │  │
-│  │   ┌─────────┐   ┌─────────┐   ┌─────────┐               │  │
-│  │   │  alice  │   │   bob   │   │ charlie │   Agents      │  │
-│  │   │ (opus)  │   │ (opus)  │   │ (haiku) │               │  │
-│  │   └────┬────┘   └────┬────┘   └────┬────┘               │  │
-│  │        │             │             │                     │  │
-│  │        └─────────────┼─────────────┘                     │  │
-│  │                      │                                   │  │
-│  │              ┌───────┴───────┐                          │  │
-│  │              │      jwz      │   Messaging              │  │
-│  │              └───────────────┘                          │  │
+│  │   ┌─────────┐                                            │  │
+│  │   │  alice  │   Agents                                   │  │
+│  │   │ (opus)  │                                            │  │
+│  │   └────┬────┘                                            │  │
+│  │        │                                                 │  │
+│  │        │                                                 │  │
+│  │        │                                                 │  │
+│  │  ┌─────┴───────┐                                        │  │
+│  │  │     jwz     │   Messaging                            │  │
+│  │  └─────────────┘                                        │  │
 │  │                                                          │  │
 │  │   ┌──────────────────────────────────────────────────┐  │  │
 │  │   │                   Hooks                          │  │  │
@@ -51,38 +51,13 @@ Three principles guide idle's architecture:
 
 ## Agent Architecture
 
-idle uses a three-tier agent hierarchy that implements a bounded dynamic programming pattern.
+idle provides a specialized agent with multi-model consensus.
 
 ### Agent Roles
 
 | Agent | Model | Role | Constraints |
 |-------|-------|------|-------------|
 | **alice** | Opus | Deep reasoning, quality gates, design decisions | Read-only; consults external models for second opinions |
-| **bob** | Opus | Task orchestrator; decomposes work, spawns workers, synthesizes results | Enforces depth/worker limits |
-| **charlie** | Haiku | Leaf worker; executes focused tasks, reports results | Cannot spawn agents; single-purpose execution |
-
-### Orchestration Pattern
-
-bob implements recursive task decomposition with explicit bounds:
-
-```
-bob (depth=0)
- │
- ├─ if task.is_complex AND depth < MAX_DEPTH:
- │   └─→ spawn bob (depth+1)
- │
- └─ else:
-     └─→ spawn charlie (worker)
-```
-
-**Bounds prevent runaway recursion:**
-
-| Limit | Value | Effect |
-|-------|-------|--------|
-| MAX_DEPTH | 3 | Deeper tasks forced to charlie |
-| MAX_WORKERS | 10 | Synthesis triggered with partial results |
-| WORKER_TIMEOUT | 60s | Worker marked FAILED, continue |
-| BOB_TIMEOUT | 300s | Escalate to alice |
 
 ### Multi-Model Consensus
 
@@ -133,7 +108,7 @@ SessionStart ─┐
 ### Hook Implementations
 
 **SessionStart** (`session-start-hook.sh`)
-Injects minimal agent awareness. Two lines of context pointing to alice and bob.
+Injects minimal agent awareness. Context pointing to alice.
 
 **Stop** (`stop-hook.sh`)
 The core loop mechanism. On agent exit:
@@ -281,8 +256,7 @@ Structured messages for discovery and filtering:
 
 Examples:
 - `[alice] ANALYSIS: auth flow race condition`
-- `[bob] RESEARCH: JWT validation patterns`
-- `[charlie] RESULT: task-001 COMPLETE`
+- `[loop] LANDED: issue-123`
 - `[review] LGTM sha:abc123`
 
 ## Skills
@@ -303,7 +277,7 @@ skills/
 Skills are invoked via `--append-system-prompt`, injecting domain context without modifying agent code:
 
 ```bash
-claude -p --agent bob \
+claude -p --agent alice \
   --append-system-prompt "$(cat skills/researching/SKILL.md)" \
   "Research OAuth 2.0 best practices"
 ```
@@ -326,10 +300,6 @@ claude -p --agent bob \
 
 | Failure | Response |
 |---------|----------|
-| Worker timeout | Mark FAILED, continue with partial results |
-| >50% workers failed | Escalate to alice for review |
-| Depth limit reached | Force charlie (no sub-orchestration) |
-| Worker limit reached | Synthesize available, note gaps |
 | Review rejected 3x | Allow completion, create follow-up issues |
 | State corrupted | Clean up, allow exit |
 | State stale (>2 hours) | Allow exit (zombie loop protection) |
@@ -393,9 +363,7 @@ git config idle.baseRef main  # Base branch for worktrees
 ```
 idle/
 ├── agents/
-│   ├── alice.md          # Deep reasoning agent
-│   ├── bob.md            # Orchestrator agent
-│   └── charlie.md        # Worker agent
+│   └── alice.md          # Deep reasoning agent
 ├── commands/
 │   ├── loop.md           # Main loop command
 │   └── cancel.md         # Loop cancellation

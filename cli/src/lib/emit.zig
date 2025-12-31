@@ -4,14 +4,10 @@ const zawinski = @import("zawinski");
 /// Agent roles for message formatting
 pub const Role = enum {
     alice,
-    bob,
-    charlie,
     loop,
 
     pub fn fromString(s: []const u8) ?Role {
         if (std.mem.eql(u8, s, "alice")) return .alice;
-        if (std.mem.eql(u8, s, "bob")) return .bob;
-        if (std.mem.eql(u8, s, "charlie")) return .charlie;
         if (std.mem.eql(u8, s, "loop")) return .loop;
         return null;
     }
@@ -30,14 +26,6 @@ pub const Action = enum {
     RESOLVED,
     NEEDS_INPUT,
     UNRESOLVED,
-
-    // bob actions
-    ORCHESTRATING,
-    SYNTHESIS,
-    REVIEW_REQUEST,
-
-    // charlie actions
-    RESULT,
 
     // loop actions
     LANDED,
@@ -248,28 +236,14 @@ test "MessageBuilder: basic message" {
     try std.testing.expect(std.mem.indexOf(u8, msg, "Found the issue.") != null);
 }
 
-test "MessageBuilder: charlie result" {
-    const allocator = std.testing.allocator;
-    var builder = MessageBuilder.init(allocator, .charlie, .RESULT);
-    _ = builder.withTaskId("t-001");
-    _ = builder.withConfidence(.MEDIUM);
-    _ = builder.withSummary("Query completed.");
-
-    const msg = try builder.build();
-    defer allocator.free(msg);
-
-    try std.testing.expect(std.mem.indexOf(u8, msg, "[charlie] RESULT: t-001") != null);
-    try std.testing.expect(std.mem.indexOf(u8, msg, "Confidence: MEDIUM") != null);
-}
-
 test "Role.fromString" {
     try std.testing.expectEqual(Role.alice, Role.fromString("alice").?);
-    try std.testing.expectEqual(Role.bob, Role.fromString("bob").?);
+    try std.testing.expectEqual(Role.loop, Role.fromString("loop").?);
     try std.testing.expect(Role.fromString("unknown") == null);
 }
 
 test "Action.fromString" {
     try std.testing.expectEqual(Action.ANALYSIS, Action.fromString("ANALYSIS").?);
-    try std.testing.expectEqual(Action.ORCHESTRATING, Action.fromString("ORCHESTRATING").?);
+    try std.testing.expectEqual(Action.LANDED, Action.fromString("LANDED").?);
     try std.testing.expect(Action.fromString("INVALID") == null);
 }

@@ -80,20 +80,11 @@ Structured format for clarity:
 | Agent | Actions |
 |-------|---------|
 | **alice** | `ANALYSIS`, `DECISION`, `REVIEW` |
-| **bob** | `RESEARCH`, `FINDING` |
 | **loop** | `STARTED`, `COMPLETE`, `STUCK` |
 
 ### Examples
 
 ```bash
-# bob posts research finding
-jwz post "issue:auth-123" --role bob \
-  -m "[bob] RESEARCH: JWT validation
-Path: .claude/plugins/idle/bob/jwt-validation.md
-Summary: Use RS256 for production
-Confidence: HIGH
-Sources: 4"
-
 # alice posts analysis
 jwz post "issue:auth-123" --role alice \
   -m "[alice] ANALYSIS: auth flow
@@ -101,11 +92,11 @@ Status: RESOLVED
 Confidence: HIGH
 Summary: Race condition in token refresh"
 
-# alice reviews bob's work
+# alice posts review
 jwz post "issue:auth-123" --role alice \
-  -m "[alice] REVIEW: bob's JWT research
+  -m "[alice] REVIEW: JWT implementation
 Verdict: PASS
-Notes: Citations verified, coverage good"
+Notes: Implementation verified, security good"
 ```
 
 ## Discovery Patterns

@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "idle",
-      "description": "Agentic harness for Claude Code. Long-running loops, multi-model consensus. Agents: alice (reasoning), bob (orchestrator), charlie (worker).",
+      "description": "Agentic harness for Claude Code. Long-running loops, multi-model consensus. Agents: alice (reasoning).",
       "source": "./"
     }
   ]

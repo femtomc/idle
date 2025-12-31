@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **Agents removed**: `bob` (orchestrator) and `charlie` (worker) agents removed
+  - spawn.zig module removed
+  - spawn command removed from CLI
+  - Documentation updated to reflect single-agent (alice) architecture
+
 ### Changed
 
 - **Environment variables removed** - All config now via jwz state or files

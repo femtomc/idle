@@ -174,6 +174,7 @@ fn parseStack(allocator: std.mem.Allocator, json_str: []const u8, stack: *std.Ar
         const branch = extractString(obj_str, "\"branch\"");
         const base_ref = extractString(obj_str, "\"base_ref\"");
         const filter = extractString(obj_str, "\"filter\"");
+        const reviewed = extractBool(obj_str, "\"reviewed\"") orelse false;
 
         try stack.append(allocator, .{
             .id = id,
@@ -186,6 +187,7 @@ fn parseStack(allocator: std.mem.Allocator, json_str: []const u8, stack: *std.Ar
             .branch = branch,
             .base_ref = base_ref,
             .filter = filter,
+            .reviewed = reviewed,
         });
     }
 }
@@ -261,6 +263,35 @@ pub fn extractNumber(json_str: []const u8, key: []const u8) ?u32 {
     if (end == start) return null;
 
     return std.fmt.parseInt(u32, after_colon[start..end], 10) catch null;
+}
+
+/// Extract a boolean value from JSON given a key
+/// Public for use by hook modules
+pub fn extractBool(json_str: []const u8, key: []const u8) ?bool {
+    const key_pos = std.mem.indexOf(u8, json_str, key) orelse return null;
+    const after_key = json_str[key_pos + key.len ..];
+
+    // Find colon
+    const colon_pos = std.mem.indexOf(u8, after_key, ":") orelse return null;
+    const after_colon = after_key[colon_pos + 1 ..];
+
+    // Skip whitespace
+    var start: usize = 0;
+    while (start < after_colon.len and (after_colon[start] == ' ' or after_colon[start] == '\t' or after_colon[start] == '\n')) {
+        start += 1;
+    }
+
+    if (start >= after_colon.len) return null;
+
+    // Check for true/false
+    if (after_colon.len >= start + 4 and std.mem.eql(u8, after_colon[start .. start + 4], "true")) {
+        return true;
+    }
+    if (after_colon.len >= start + 5 and std.mem.eql(u8, after_colon[start .. start + 5], "false")) {
+        return false;
+    }
+
+    return null;
 }
 
 // ============================================================================
@@ -392,4 +423,37 @@ test "parseEvent: invalid json returns null" {
 test "parseEvent: empty string returns null" {
     const result = try parseEvent(std.testing.allocator, "");
     try std.testing.expect(result == null);
+}
+
+test "extractBool: true value" {
+    const json = "{\"reviewed\":true}";
+    const reviewed = extractBool(json, "\"reviewed\"");
+    try std.testing.expect(reviewed != null);
+    try std.testing.expect(reviewed.? == true);
+}
+
+test "extractBool: false value" {
+    const json = "{\"reviewed\":false}";
+    const reviewed = extractBool(json, "\"reviewed\"");
+    try std.testing.expect(reviewed != null);
+    try std.testing.expect(reviewed.? == false);
+}
+
+test "extractBool: missing key returns null" {
+    const json = "{\"other\":true}";
+    const reviewed = extractBool(json, "\"reviewed\"");
+    try std.testing.expect(reviewed == null);
+}
+
+test "parseEvent: frame with reviewed field" {
+    const json =
+        \\{"schema":0,"event":"STATE","run_id":"loop-123","updated_at":"2024-12-21T10:00:00Z","stack":[{"id":"loop-123","mode":"loop","iter":3,"max":10,"prompt_file":"/tmp/p.txt","reviewed":true}]}
+    ;
+
+    var parsed = try parseEvent(std.testing.allocator, json);
+    try std.testing.expect(parsed != null);
+    defer parsed.?.deinit();
+
+    const frame = parsed.?.state.stack[0];
+    try std.testing.expect(frame.reviewed == true);
 }

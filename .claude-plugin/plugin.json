@@ -1,7 +1,7 @@
 {
   "name": "idle",
   "version": "1.2.0",
-  "description": "Agentic harness for Claude Code. Long-running loops, multi-model consensus. Agents: alice (reasoning), bob (orchestrator), charlie (worker). Skills: researching, technical-writing, bib-managing, messaging, issue-tracking, querying-codex, querying-gemini.",
+  "description": "Agentic harness for Claude Code. Long-running loops, multi-model consensus. Agents: alice (reasoning). Skills: researching, technical-writing, bib-managing, messaging, issue-tracking, querying-codex, querying-gemini.",
   "author": {
     "name": "femtomc"
   }

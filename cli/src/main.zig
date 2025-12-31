@@ -24,7 +24,6 @@ const usage =
     \\  status         Show loop status (JSON or human-readable)
     \\  doctor         Check environment dependencies
     \\  emit           Post structured message to jwz
-    \\  spawn          Spawn a subagent (enforces limits)
     \\  worktree       Manage git worktrees for issues
     \\  issues         List/show issues from tissue
     \\  version        Show version information
@@ -70,8 +69,6 @@ pub fn main() !u8 {
         return runDoctor(allocator);
     } else if (std.mem.eql(u8, command, "emit")) {
         return runEmit(allocator, args[2..]);
-    } else if (std.mem.eql(u8, command, "spawn")) {
-        return runSpawn(allocator, args[2..]);
     } else if (std.mem.eql(u8, command, "worktree")) {
         return runWorktree(allocator, args[2..]);
     } else if (std.mem.eql(u8, command, "issues")) {
@@ -217,7 +214,7 @@ fn runEmit(allocator: std.mem.Allocator, args: []const []const u8) !u8 {
 
     const topic = args[0];
     const role = idle.emit.Role.fromString(args[1]) orelse {
-        try writeStderr("Invalid role. Must be: alice, bob, charlie, loop\n");
+        try writeStderr("Invalid role. Must be: alice, loop\n");
         return 1;
     };
     const action = idle.emit.Action.fromString(args[2]) orelse {
@@ -255,56 +252,6 @@ fn runEmit(allocator: std.mem.Allocator, args: []const []const u8) !u8 {
     };
 
     return 0;
-}
-
-fn runSpawn(allocator: std.mem.Allocator, args: []const []const u8) !u8 {
-    // Parse: spawn <agent-type> <task-json> [--timeout N] [--background]
-    if (args.len < 2) {
-        try writeStderr("Usage: idle spawn <charlie|bob> <task-json> [--timeout N] [--background]\n");
-        return 1;
-    }
-
-    const agent = idle.spawn.AgentType.fromString(args[0]) orelse {
-        try writeStderr("Invalid agent type. Must be: charlie, bob\n");
-        return 1;
-    };
-    const task_json = args[1];
-
-    var timeout: ?u32 = null;
-    var background = false;
-
-    var i: usize = 2;
-    while (i < args.len) : (i += 1) {
-        if (std.mem.eql(u8, args[i], "--timeout") and i + 1 < args.len) {
-            timeout = std.fmt.parseInt(u32, args[i + 1], 10) catch null;
-            i += 1;
-        } else if (std.mem.eql(u8, args[i], "--background")) {
-            background = true;
-        }
-    }
-
-    const result = idle.spawn.spawn(allocator, agent, task_json, timeout, background) catch |err| {
-        var buf: [256]u8 = undefined;
-        const msg = std.fmt.bufPrint(&buf, "Spawn failed: {s}\n", .{@errorName(err)}) catch "Spawn failed\n";
-        try writeStderr(msg);
-        return 1;
-    };
-
-    return switch (result) {
-        .success => 0,
-        .depth_exceeded => blk: {
-            try writeStderr("Error: MAX_DEPTH exceeded\n");
-            break :blk 1;
-        },
-        .invalid_contract => blk: {
-            try writeStderr("Error: Invalid task contract\n");
-            break :blk 1;
-        },
-        .spawn_failed => blk: {
-            try writeStderr("Error: Spawn failed\n");
-            break :blk 1;
-        },
-    };
 }
 
 fn runWorktree(allocator: std.mem.Allocator, args: []const []const u8) !u8 {
