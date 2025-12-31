@@ -74,20 +74,16 @@ if [ ! -f "$CLAUDE_SETTINGS" ]; then
     echo '{}' > "$CLAUDE_SETTINGS"
 fi
 
-# Add plugin directory to settings if not already present
+# Enable plugin in settings
 if command -v jq >/dev/null 2>&1; then
-    if ! jq -e '.plugins // [] | map(select(.path == "'"$PLUGIN_DIR"'")) | length > 0' "$CLAUDE_SETTINGS" >/dev/null 2>&1; then
-        # Backup settings
-        cp "$CLAUDE_SETTINGS" "$CLAUDE_SETTINGS.bak"
+    # Backup settings
+    cp "$CLAUDE_SETTINGS" "$CLAUDE_SETTINGS.bak"
 
-        # Add plugin to settings
-        jq '.plugins = (.plugins // []) + [{"path": "'"$PLUGIN_DIR"'"}]' "$CLAUDE_SETTINGS" > "$CLAUDE_SETTINGS.tmp"
-        mv "$CLAUDE_SETTINGS.tmp" "$CLAUDE_SETTINGS"
+    # Add plugin path and enable it
+    jq '.plugins = (.plugins // []) + [{"path": "'"$PLUGIN_DIR"'"}] | .plugins = (.plugins | unique_by(.path)) | .enabledPlugins.idle = true' "$CLAUDE_SETTINGS" > "$CLAUDE_SETTINGS.tmp"
+    mv "$CLAUDE_SETTINGS.tmp" "$CLAUDE_SETTINGS"
 
-        echo "Plugin registered in Claude Code settings."
-    else
-        echo "Plugin already registered."
-    fi
+    echo "Plugin registered and enabled in Claude Code settings."
 fi
 
 echo ""
