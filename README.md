@@ -3,11 +3,13 @@
 `idle` is a Claude Code plugin that exposes a long-running loop mode with persistent state and review gates.
 
 It is implemented as:
-- Claude Code hooks (`SessionStart`, `Stop`, `PreCompact`) configured in `hooks/hooks.json`
-- A set of Zig CLI tools for tracking issues and state (as readable JSONL files). These tools are used to keep track of issues, as well as persist "state" for the plugin (whether the agent is already working within a loop, etc).
-- A Zig CLI (`bin/idle`) that implements those hooks (and a few helper commands)
-- A read-only reviewer agent `idle:alice`, with support for consensus via discussion with other agents, like Codex and Gemini
-- A set of useful skills which augment the capabilities of the main agent, and `idle:alice`.
+- **(Hooks)** Claude Code hooks (`SessionStart`, `Stop`, `PreCompact`) configured in `hooks/hooks.json`
+- **(CLI tools)** A set of Zig CLI tools for tracking issues and state (as readable JSONL files). These tools are used to keep track of issues, as well as persist "state" for the plugin (whether the agent is already working within a loop, etc).
+- **(A CLI tool which implements the hook logic)** A Zig CLI (`bin/idle`) that implements those hooks (and a few helper commands)
+- **(A deep reasoning subagent)** A read-only reviewer agent `idle:alice`, with support for consensus via discussion with other agents, like Codex and Gemini
+- **(Skills)** A set of skills which augment the capabilities of the main agent, and `idle:alice`.
+
+`idle` is intentionally minimal. The core logic is about setting up a long running, persistent work loop with an independent reviewer. You can program the loop by adding more skills, more subagents, etc.
 
 ## Install
 
