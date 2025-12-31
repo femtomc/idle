@@ -1,46 +1,11 @@
 # idle
 
-`idle` is a Claude Code plugin that turns “one-shot” work into an explicit loop with persistent state and review gates.
+`idle` is a Claude Code plugin that exposes a long-running loop mode with persistent state and review gates.
 
 It is implemented as:
 - Claude Code hooks (`SessionStart`, `Stop`, `PreCompact`) configured in `hooks/hooks.json`
 - A Zig CLI (`bin/idle`) that implements those hooks (and a few helper commands)
-- One read-only reviewer agent: `idle:alice`
-
-## What idle actually enforces
-
-The loop is driven by a message in the zawinski store (the `.zawinski/` directory) on topic `loop:current`.
-
-- If `loop:current` has an active stack frame, the `Stop` hook blocks Claude from exiting (exit code `2`) and forces another iteration.
-- If your last assistant message contains a completion marker, the `Stop` hook allows exit (exit code `0`).
-- For `COMPLETE` and `STUCK`, the first completion attempt is intercepted to request an `idle:alice` review; you then re-signal completion to exit.
-
-## Claude Code surface area
-
-idle ships:
-
-- Commands (prompt templates in `commands/`):
-  - `/loop` – describes the loop contract and completion markers
-  - `/cancel` – describes how to cancel an active loop
-  - `/init` – guided “initialize + plan” workflow
-- Agent:
-  - `idle:alice` – read-only adversarial reviewer (`agents/alice.md`)
-- Skills (prompt templates in `skills/`):
-  - `reviewing`, `researching`, `issue-tracking`, `technical-writing`, `bib-managing`
-
-## Completion signals (must be exact)
-
-The `Stop` hook scans the *last assistant message text* and looks for one of these **exact** lines:
-
-```
-<loop-done>COMPLETE</loop-done>
-<loop-done>STUCK</loop-done>
-<loop-done>MAX_ITERATIONS</loop-done>
-```
-
-Rules (these are enforced by the parser in `cli/src/lib/state_machine.zig`):
-- The tag must start at column 0 (no leading spaces/tabs)
-- The line must match exactly (no extra characters or trailing spaces)
+- One read-only reviewer agent `idle:alice`, with support for consensus via discussion with other agents, like Codex and Gemini
 
 ## Install
 
@@ -62,39 +27,52 @@ claude plugin marketplace refresh
 claude plugin install idle@emes
 ```
 
-## Project setup (once per repo)
+## Implementation
 
-From your project root:
+### Looping
 
-```sh
-jwz init        # creates .zawinski/ (loop state + transcript sync)
-tissue init     # optional: creates .tissue/ (ready issue list on SessionStart)
+The loop is driven by a message in the zawinski store (the `.zawinski/` directory) on topic `loop:current`.
+
+- If `loop:current` has an active stack frame, the `Stop` hook blocks Claude from exiting (exit code `2`) and forces another iteration.
+- If your last assistant message contains a completion marker, the `Stop` hook allows exit (exit code `0`).
+- For `COMPLETE` and `STUCK`, the first completion attempt is intercepted to request an `idle:alice` review; you then re-signal completion to exit.
+
+### Claude Code surface area
+
+idle ships:
+
+- Commands (prompt templates in `commands/`):
+  - `/loop` – describes the loop contract and completion markers
+  - `/cancel` – describes how to cancel an active loop
+  - `/init` – guided “initialize + plan” workflow
+- Agent:
+  - `idle:alice` – read-only adversarial reviewer (`agents/alice.md`)
+- Skills (prompt templates in `skills/`):
+  - `reviewing`, `researching`, `issue-tracking`, `technical-writing`, `bib-managing`
+
+### Completion signals (must be exact)
+
+The `Stop` hook scans the *last assistant message text* and looks for one of these **exact** lines:
+
+```
+<loop-done>COMPLETE</loop-done>
+<loop-done>STUCK</loop-done>
+<loop-done>MAX_ITERATIONS</loop-done>
 ```
 
-## Start a loop (state bootstrap)
+Rules (these are enforced by the parser in `cli/src/lib/state_machine.zig`):
+- The tag must start at column 0 (no leading spaces/tabs)
+- The line must match exactly (no extra characters or trailing spaces)
 
-idle does not currently ship a dedicated `idle start` command; starting a loop means posting an initial `STATE` message to `loop:current`.
+### Hooks
 
-```sh
-RUN_ID="loop-$(date -u +%s)"
-UPDATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
-jwz post loop:current -m "{\"schema\":1,\"event\":\"STATE\",\"run_id\":\"$RUN_ID\",\"updated_at\":\"$UPDATED_AT\",\"stack\":[{\"id\":\"$RUN_ID\",\"mode\":\"loop\",\"iter\":0,\"max\":10,\"prompt_file\":\"\",\"reviewed\":false,\"checkpoint_reviewed\":false}]}"
-```
-
-After this, open Claude Code with the plugin enabled (optionally start with `/loop <task>` to state the goal) and work normally; on each assistant “stop”, the `Stop` hook will either:
-- block and ask you to continue (iterations 1..N), or
-- allow exit when it sees a completion signal
-
-## What the hooks do
-
-### `SessionStart` (`bin/idle session-start`)
+#### `SessionStart` (`bin/idle session-start`)
 
 - If a loop is active, injects `Mode` and `Iteration` context at the start of the session.
 - Always injects “idle:alice is available” guidance.
 - If a `.tissue/` store exists, lists up to 15 ready issues.
 
-### `Stop` (`bin/idle stop`)
+#### `Stop` (`bin/idle stop`)
 
 - Syncs the Claude transcript into the `.zawinski/` database (if present).
 - Reads `loop:current` and decides whether to allow exit (`0`) or block (`2`).
@@ -103,7 +81,7 @@ After this, open Claude Code with the plugin enabled (optionally start with `/lo
 - On `<loop-done>COMPLETE</loop-done>` or `<loop-done>STUCK</loop-done>`, blocks once to request `idle:alice` completion review.
 - On `MAX_ITERATIONS`, posts a `DONE` state and allows exit.
 
-### `PreCompact` (`bin/idle pre-compact`)
+#### `PreCompact` (`bin/idle pre-compact`)
 
 - If a loop is active, posts a recovery “anchor” message to `loop:anchor` in `.zawinski/`.
 - Prints a reminder to recover with `jwz read loop:anchor` after compaction.
@@ -116,17 +94,6 @@ idle status --json # raw JSON from loop:current
 
 jwz read loop:current --limit 1
 jwz read loop:anchor  --limit 1
-```
-
-## Escape hatches
-
-```sh
-touch .idle-disabled   # bypass Stop hook logic (remove after)
-
-# Cancel the loop (posts ABORT; next Stop hook will allow exit)
-jwz post loop:current -m '{"schema":1,"event":"ABORT","stack":[]}'
-
-rm -rf .zawinski/      # wipe all jwz state for this repo (destructive)
 ```
 
 ## CLI reference
@@ -146,12 +113,6 @@ Exit codes:
 - `0`: allow/success
 - `1`: error
 - `2`: block (hook tells Claude Code to re-enter)
-
-## Development
-
-- Hook binary source lives in `cli/src/`.
-- Build locally (requires Zig): `cd cli && zig build -Doptimize=ReleaseFast`
-- Run unit tests: `cd cli && zig build test`
 
 ## License
 
