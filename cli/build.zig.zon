@@ -10,7 +10,7 @@
         },
         .tissue = .{
             .url = "git+https://github.com/evil-mind-evil-sword/tissue.git#main",
-            .hash = "tissue-0.1.0-t39Il75-lwA8S9NQjYhGMr9mBEy_dk2pcS7A6EfSyhx4",
+            .hash = "tissue-0.1.0-t39Il8yDlwDI94mu7XJaMUkTUWngORs37PmTa8luLlvL",
         },
     },
 

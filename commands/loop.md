@@ -12,6 +12,8 @@ Iterate on a task until it's complete.
 /loop <task description>
 ```
 
+Before starting, run `idle init-loop` to initialize the infrastructure (`.zawinski/`, `.tissue/`, loop state).
+
 ## Example
 
 ```sh
@@ -23,16 +25,6 @@ Iterates on the task until complete.
 - **Max iterations**: 10
 - **Checkpoint reviews**: Every 3 iterations (alice)
 - **Completion review**: On COMPLETE/STUCK signals (alice)
-
-## Bootstrap (first run)
-
-Initialize loop state before iterating:
-
-```bash
-idle init-loop
-```
-
-This creates the `.zawinski/` store and `loop:current` topic if needed, then posts the initial STATE frame. If a loop is already active, it leaves it alone.
 
 ## Completion Signals
 

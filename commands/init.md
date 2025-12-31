@@ -10,15 +10,13 @@ Initialize a project with idle infrastructure and create an actionable plan.
 
 ### Step 1: Setup Infrastructure
 
-First, ensure jwz and tissue are initialized:
+Initialize the idle infrastructure:
 
 ```bash
-# Check and initialize if needed
-[ -d .zawinski ] || jwz init
-[ -d .tissue ] || tissue init
+idle init-loop
 ```
 
-Run these commands now if the directories don't exist.
+This creates `.zawinski/` (messaging) and `.tissue/` (issues) if needed.
 
 ### Step 2: Explore the Codebase
 

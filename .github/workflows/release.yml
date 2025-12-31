@@ -349,8 +349,6 @@ jobs:
               success "Installation complete!"
               printf "\n"
               printf "Get started:\n"
-              printf "  ${BLUE}tissue init${NC}      # Initialize issue tracker\n"
-              printf "  ${BLUE}jwz init${NC}         # Initialize messaging\n"
               printf "  ${BLUE}/init${NC}            # Plan a project with Alice\n"
               printf "  ${BLUE}/loop${NC}            # Work through issues\n"
               printf "\n"

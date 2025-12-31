@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2025-12-31
+
+### Changed
+
+- **`idle init-loop` now initializes tissue** - Single command sets up both `.zawinski/` and `.tissue/`
+- **Simplified `/init` and `/loop`** - No manual `tissue init` or `jwz init` needed
+- **Updated install script** - Removed manual init steps from "Get started" message
+
+### Dependencies
+
+- Updated tissue dependency to use new `Store.init()` API
+
 ## [1.5.9] - 2025-12-31
 
 ### Added

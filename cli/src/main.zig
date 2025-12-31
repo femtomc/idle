@@ -66,7 +66,7 @@ pub fn main() !u8 {
     } else if (std.mem.eql(u8, command, "issues")) {
         return runIssues(allocator, args[2..]);
     } else if (std.mem.eql(u8, command, "version")) {
-        try writeStdout("idle 1.5.9\n");
+        try writeStdout("idle 1.6.0\n");
         return 0;
     } else if (std.mem.eql(u8, command, "help") or std.mem.eql(u8, command, "--help") or std.mem.eql(u8, command, "-h")) {
         try writeStdout(usage);
@@ -95,20 +95,20 @@ fn writeStderr(msg: []const u8) !void {
 }
 
 fn runInitLoop(allocator: std.mem.Allocator) !u8 {
-    const store_path = ".zawinski";
+    const tissue = @import("tissue");
+    const cwd = std.fs.cwd();
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const abs_cwd = try cwd.realpath(".", &path_buf);
 
     // Step 1: Initialize jwz store if needed
-    const cwd = std.fs.cwd();
-    const store_exists = blk: {
-        cwd.access(store_path, .{}) catch break :blk false;
+    const jwz_path = ".zawinski";
+    const jwz_exists = blk: {
+        cwd.access(jwz_path, .{}) catch break :blk false;
         break :blk true;
     };
 
-    if (!store_exists) {
-        // Get absolute path for Store.init
-        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-        const abs_store = try cwd.realpath(".", &path_buf);
-        const full_path = try std.fs.path.join(allocator, &.{ abs_store, store_path });
+    if (!jwz_exists) {
+        const full_path = try std.fs.path.join(allocator, &.{ abs_cwd, jwz_path });
         defer allocator.free(full_path);
 
         zawinski.store.Store.init(allocator, full_path) catch |err| switch (err) {
@@ -121,7 +121,28 @@ fn runInitLoop(allocator: std.mem.Allocator) !u8 {
         try writeStdout("Initialized .zawinski store\n");
     }
 
-    // Step 2: Open store
+    // Step 2: Initialize tissue store if needed
+    const tissue_path = ".tissue";
+    const tissue_exists = blk: {
+        cwd.access(tissue_path, .{}) catch break :blk false;
+        break :blk true;
+    };
+
+    if (!tissue_exists) {
+        const full_path = try std.fs.path.join(allocator, &.{ abs_cwd, tissue_path });
+        defer allocator.free(full_path);
+
+        tissue.store.Store.init(allocator, full_path) catch |err| switch (err) {
+            tissue.store.StoreError.StoreAlreadyExists => {}, // Race condition, fine
+            else => {
+                try writeStderr("Failed to initialize tissue store\n");
+                return 1;
+            },
+        };
+        try writeStdout("Initialized .tissue store\n");
+    }
+
+    // Step 3: Open jwz store
     const store_dir = zawinski.store.discoverStoreDir(allocator) catch {
         try writeStderr("Failed to discover store\n");
         return 1;

@@ -72,7 +72,7 @@ In Claude Code, start by running `/loop <task>`. Before iterating, initialize th
 idle init-loop
 ```
 
-This creates the `.zawinski/` store and `loop:current` topic if needed, then posts the initial STATE frame. If a loop is already active, it leaves it alone.
+This initializes `.zawinski/` (messaging), `.tissue/` (issues), and `loop:current` state. If a loop is already active, it leaves it alone.
 
 ### Hooks
 
