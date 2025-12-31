@@ -1,7 +1,7 @@
 {
   "name": "idle",
-  "version": "1.8.1",
-  "description": "Agentic harness for Claude Code. Long-running loops, multi-model consensus. Agents: alice (deep reasoning). Skills: reviewing, researching, issue-tracking, technical-writing, bib-managing.",
+  "version": "2.0.0",
+  "description": "Quality gate for Claude Code. Every exit requires alice review. Skills: reviewing, researching, issue-tracking, technical-writing, bib-managing.",
   "author": {
     "name": "femtomc"
   }

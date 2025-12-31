@@ -1,11 +1,10 @@
 const std = @import("std");
+const tissue = @import("tissue");
 const idle = @import("idle");
-const zawinski = @import("zawinski");
 const extractJsonString = idle.event_parser.extractString;
-const jwz = idle.jwz_utils;
 
-/// Stop hook - core loop mechanism
-/// Implements the self-referential loop via zawinski messaging
+/// Stop hook - quality gate via alice review
+/// Invokes alice on every exit, allows only if no issues created.
 pub fn run(allocator: std.mem.Allocator) !u8 {
     // Read hook input from stdin
     const stdin = std.fs.File.stdin();
@@ -13,287 +12,118 @@ pub fn run(allocator: std.mem.Allocator) !u8 {
     const n = try stdin.readAll(&buf);
     const input_json = buf[0..n];
 
-    // Extract fields
-    const transcript_path = extractJsonString(input_json, "\"transcript_path\"");
-    const session_id = extractJsonString(input_json, "\"session_id\"");
+    // Extract cwd and change to project directory
     const cwd = extractJsonString(input_json, "\"cwd\"") orelse ".";
-
-    // Change to project directory
     std.posix.chdir(cwd) catch {};
-
-    // Sync transcript to zawinski (always, regardless of loop state)
-    if (transcript_path != null and session_id != null) {
-        jwz.syncTranscript(allocator, transcript_path.?, session_id.?, cwd);
-    }
 
     // Check file-based escape hatch
     if (std.fs.cwd().access(".idle-disabled", .{})) |_| {
-        return 0; // Escape hatch active
+        return 0; // Escape hatch active - allow exit
     } else |_| {}
 
-    // Read loop state from jwz (shell out for now)
-    const state_json = try jwz.readJwzState(allocator);
-    defer if (state_json) |s| allocator.free(s);
+    // Count issues BEFORE alice review
+    const issues_before = countOpenAliceReviewIssues(allocator);
 
-    if (state_json == null or state_json.?.len == 0) {
-        return 0; // No loop active
+    // Invoke alice for review
+    invokeAlice(allocator);
+
+    // Count issues AFTER alice review
+    const issues_after = countOpenAliceReviewIssues(allocator);
+
+    // If alice created new issues, block
+    if (issues_after > issues_before) {
+        return blockWithReason(
+            \\[NEEDS_WORK] Alice created {} new issue(s) during review.
+            \\
+            \\Fix all alice-review issues before exit is allowed.
+            \\Run `tissue list -t alice-review` to see them.
+        , .{issues_after - issues_before});
     }
 
-    // Parse state
-    var parsed = idle.parseEvent(allocator, state_json.?) catch return 0;
-    defer if (parsed) |*p| p.deinit();
-
-    if (parsed == null) {
-        return 0;
+    // If there are still open issues (from previous reviews), block
+    if (issues_after > 0) {
+        return blockWithReason(
+            \\[ISSUES REMAIN] {} open alice-review issue(s) exist.
+            \\
+            \\Fix all issues, then exit will be allowed.
+            \\Run `tissue list -t alice-review` to see them.
+        , .{issues_after});
     }
 
-    const state = &parsed.?.state;
+    // No issues - alice approved
+    return 0;
+}
 
-    // Check for ABORT event - clean up and allow exit
-    if (state.event == .ABORT) {
-        // Post DONE with empty stack so next session starts fresh
-        const abort_done = "{\"schema\":1,\"event\":\"DONE\",\"reason\":\"ABORT\",\"stack\":[]}";
-        jwz.postJwzMessage(allocator, "loop:current", abort_done) catch {};
-        return 0;
-    }
+/// Invoke alice for review via claude CLI
+fn invokeAlice(allocator: std.mem.Allocator) void {
+    const alice_prompt =
+        \\You are alice, an adversarial reviewer. Review the work done in this session.
+        \\
+        \\Your job: find problems. Assume there are bugs until proven otherwise.
+        \\
+        \\For each problem found, create a tissue issue:
+        \\  tissue new "<problem description>" -t alice-review -p <1-3>
+        \\
+        \\Priority: 1=critical, 2=important, 3=minor
+        \\
+        \\If you find no problems, create no issues.
+        \\
+        \\Be thorough but concise. Check for:
+        \\- Correctness bugs
+        \\- Missing error handling
+        \\- Security issues
+        \\- Incomplete implementation
+        \\- Edge cases
+    ;
 
-    // Check empty stack
-    if (state.stack.len == 0) {
-        return 0;
-    }
+    var child = std.process.Child.init(&.{ "claude", "-p", alice_prompt }, allocator);
+    _ = child.spawnAndWait() catch return;
+}
 
-    // Get current time
-    const now_ts = std.time.timestamp();
+/// Block exit with a formatted reason
+fn blockWithReason(comptime fmt: []const u8, args: anytype) u8 {
+    var reason_buf: [4096]u8 = undefined;
+    const reason = std.fmt.bufPrint(&reason_buf, fmt, args) catch return 2;
 
-    // Detect completion signal from transcript
-    var completion_signal: ?idle.CompletionReason = null;
-    const frame = &state.stack[state.stack.len - 1];
+    var stdout_buf: [8192]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
+    const stdout = &stdout_writer.interface;
 
-    if (transcript_path) |path| {
-        const text = idle.transcript.extractLastAssistantText(allocator, path) catch null;
-        defer if (text) |t| allocator.free(t);
+    stdout.writeAll("{\"decision\":\"block\",\"reason\":\"") catch return 2;
+    escapeJsonTo(stdout, reason) catch return 2;
+    stdout.writeAll("\"}\n") catch return 2;
+    stdout.flush() catch return 2;
 
-        if (text) |t| {
-            completion_signal = idle.StateMachine.detectCompletionSignal(t);
+    return 2;
+}
+
+/// Escape string for JSON output
+fn escapeJsonTo(writer: anytype, data: []const u8) !void {
+    for (data) |c| {
+        switch (c) {
+            '"' => try writer.writeAll("\\\""),
+            '\\' => try writer.writeAll("\\\\"),
+            '\n' => try writer.writeAll("\\n"),
+            '\r' => try writer.writeAll("\\r"),
+            '\t' => try writer.writeAll("\\t"),
+            else => {
+                if (c < 0x20) {
+                    try writer.print("\\u{x:0>4}", .{c});
+                } else {
+                    try writer.writeByte(c);
+                }
+            },
         }
-    }
-
-    // Evaluate state machine
-    var machine = idle.StateMachine.init(allocator);
-    const result = machine.evaluate(state, now_ts, completion_signal);
-
-    // Handle result
-    switch (result.decision) {
-        .allow_exit => {
-            // Check if this is a completion signal that needs alice review
-            if (result.completion_reason) |reason| {
-                // Only trigger alice review for COMPLETE or STUCK signals, and only if not already reviewed
-                const needs_review = (reason == .COMPLETE or reason == .STUCK) and !frame.reviewed;
-
-                if (needs_review) {
-                    // Block exit and request alice review
-                    const ts = jwz.formatIso8601(now_ts);
-
-                    // Build state with reviewed = true
-                    var review_state_buf: [2048]u8 = undefined;
-                    const review_state_json = std.fmt.bufPrint(&review_state_buf,
-                        \\{{"schema":1,"event":"STATE","run_id":"{s}","updated_at":"{s}","stack":[{{"id":"{s}","mode":"{s}","iter":{},"max":{},"prompt_file":"{s}","reviewed":true}}]}}
-                    , .{
-                        state.run_id,
-                        &ts,
-                        frame.id,
-                        @tagName(frame.mode),
-                        frame.iter,
-                        frame.max,
-                        frame.prompt_file,
-                    }) catch return 0;
-
-                    try jwz.postJwzMessage(allocator, "loop:current", review_state_json);
-
-                    // Build alice review instruction
-                    const reason_str = @tagName(reason);
-                    var reason_buf: [8192]u8 = undefined;
-                    const reason_len = (std.fmt.bufPrint(&reason_buf,
-                        \\[REVIEW REQUIRED] You signaled {s}. Before completing, invoke the alice agent to review your work.
-                        \\
-                        \\Use the Task tool with subagent_type="idle:alice" to request adversarial review. Alice will:
-                        \\1. Systematically verify your implementation using domain-specific checklists
-                        \\2. Create tissue issues (tagged `alice-review`) for each problem found
-                        \\3. Get second opinions from Codex/Gemini on critical findings
-                        \\4. Give verdict: APPROVE (no issues) or NEEDS_WORK (issues created)
-                        \\
-                        \\After alice's review:
-                        \\- If APPROVE: Signal completion again
-                        \\- If NEEDS_WORK: Address each issue tagged `alice-review` (run `tissue list` to see all)
-                        \\  - Fix the issue
-                        \\  - Close it: `tissue status <id> closed`
-                        \\  - Repeat until all alice-review issues are closed
-                        \\  - Signal completion again for re-review
-                        \\
-                        \\Alice will re-review and verify each fix. Loop continues until alice approves.
-                    , .{reason_str}) catch return 0).len;
-
-                    // Output block decision
-                    var stdout_buf: [8192]u8 = undefined;
-                    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
-                    const stdout = &stdout_writer.interface;
-
-                    var escaped_buf: [8192]u8 = undefined;
-                    const escaped = jwz.escapeJson(reason_buf[0..reason_len], &escaped_buf);
-
-                    try stdout.print("{{\"decision\":\"block\",\"reason\":\"{s}\"}}\n", .{escaped});
-                    try stdout.flush();
-
-                    return 2; // Block exit for review
-                }
-
-                // Verify alice actually approved by checking for open alice-review issues
-                // This prevents bypassing re-review after alice says NEEDS_WORK
-                const open_issues = countOpenAliceReviewIssues(allocator);
-                if (open_issues > 0) {
-                    // Open issues exist - alice said NEEDS_WORK, block for re-review
-                    const ts = jwz.formatIso8601(now_ts);
-
-                    // Reset reviewed to false so next completion triggers alice again
-                    var rereview_state_buf: [2048]u8 = undefined;
-                    const rereview_state_json = std.fmt.bufPrint(&rereview_state_buf,
-                        \\{{"schema":1,"event":"STATE","run_id":"{s}","updated_at":"{s}","stack":[{{"id":"{s}","mode":"{s}","iter":{},"max":{},"prompt_file":"{s}","reviewed":false}}]}}
-                    , .{
-                        state.run_id,
-                        &ts,
-                        frame.id,
-                        @tagName(frame.mode),
-                        frame.iter,
-                        frame.max,
-                        frame.prompt_file,
-                    }) catch return 0;
-
-                    try jwz.postJwzMessage(allocator, "loop:current", rereview_state_json);
-
-                    // Build re-review instruction
-                    var reason_buf: [8192]u8 = undefined;
-                    const reason_len = (std.fmt.bufPrint(&reason_buf,
-                        \\[ISSUES REMAIN] You signaled completion but {} open alice-review issue(s) exist.
-                        \\
-                        \\Alice said NEEDS_WORK. You must fix all issues before completion is allowed.
-                        \\
-                        \\Check remaining issues: `tissue list` (look for open issues tagged `alice-review`)
-                        \\
-                        \\For each issue:
-                        \\1. Fix the problem
-                        \\2. Close it: `tissue status <id> closed`
-                        \\
-                        \\After fixing ALL issues, signal completion again for re-review by alice.
-                    , .{open_issues}) catch return 0).len;
-
-                    // Output block decision
-                    var stdout_buf: [8192]u8 = undefined;
-                    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
-                    const stdout = &stdout_writer.interface;
-
-                    var escaped_buf: [8192]u8 = undefined;
-                    const escaped = jwz.escapeJson(reason_buf[0..reason_len], &escaped_buf);
-
-                    try stdout.print("{{\"decision\":\"block\",\"reason\":\"{s}\"}}\n", .{escaped});
-                    try stdout.flush();
-
-                    return 2; // Block exit until issues are fixed
-                }
-
-                // Post completion state
-                const reason_str = @tagName(reason);
-                var done_buf: [256]u8 = undefined;
-                const done_json = std.fmt.bufPrint(&done_buf,
-                    \\{{"schema":1,"event":"DONE","reason":"{s}","stack":[]}}
-                , .{reason_str}) catch return 0;
-
-                try jwz.postJwzMessage(allocator, "loop:current", done_json);
-            }
-            return 0;
-        },
-        .block_exit => {
-            // Update iteration
-            const new_iter = result.new_iteration orelse frame.iter + 1;
-
-            // Check if checkpoint review is due (every 3 iterations)
-            const checkpoint_interval = idle.state_machine.CHECKPOINT_INTERVAL;
-            const checkpoint_due = new_iter > 0 and new_iter % checkpoint_interval == 0 and !frame.checkpoint_reviewed;
-
-            // Build continuation or checkpoint message
-            var reason_buf: [8192]u8 = undefined;
-            var reason_len: usize = 0;
-
-            if (checkpoint_due) {
-                // Checkpoint review message
-                reason_len += (std.fmt.bufPrint(reason_buf[reason_len..],
-                    \\[CHECKPOINT REVIEW - Iteration {}/{}] Periodic review triggered.
-                    \\
-                    \\Invoke alice for a checkpoint review using Task tool with subagent_type="idle:alice".
-                    \\
-                    \\Tell alice this is a CHECKPOINT review (not completion). She will:
-                    \\1. Check progress against the original task
-                    \\2. Identify any issues early (create tissue issues tagged `alice-review`)
-                    \\3. Give guidance for the next phase
-                    \\4. Return CONTINUE (keep working) or PAUSE (stop and address issues)
-                    \\
-                    \\After checkpoint review, continue working on the task.
-                , .{ new_iter, frame.max }) catch return 0).len;
-            } else {
-                // Normal continuation message
-                reason_len += (std.fmt.bufPrint(reason_buf[reason_len..],
-                    "[ITERATION {}/{}] Continue working on the task. Check your progress and either complete the task or keep iterating.", .{ new_iter, frame.max }) catch return 0).len;
-            }
-
-            // Update state with new iteration
-            // Reset reviewed to false, set checkpoint_reviewed based on whether we're triggering checkpoint
-            var iter_state_buf: [2048]u8 = undefined;
-            const ts = jwz.formatIso8601(now_ts);
-            const checkpoint_reviewed_str = if (checkpoint_due) "true" else "false";
-            const iter_state_json = std.fmt.bufPrint(&iter_state_buf,
-                \\{{"schema":1,"event":"STATE","run_id":"{s}","updated_at":"{s}","stack":[{{"id":"{s}","mode":"{s}","iter":{},"max":{},"prompt_file":"{s}","reviewed":false,"checkpoint_reviewed":{s}}}]}}
-            , .{
-                state.run_id,
-                &ts,
-                frame.id,
-                @tagName(frame.mode),
-                new_iter,
-                frame.max,
-                frame.prompt_file,
-                checkpoint_reviewed_str,
-            }) catch return 0;
-
-            try jwz.postJwzMessage(allocator, "loop:current", iter_state_json);
-
-            // Output block decision
-            var stdout_buf: [16384]u8 = undefined;
-            var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
-            const stdout = &stdout_writer.interface;
-
-            // Escape reason for JSON
-            var escaped_buf: [16384]u8 = undefined;
-            const escaped = jwz.escapeJson(reason_buf[0..reason_len], &escaped_buf);
-
-            try stdout.print("{{\"decision\":\"block\",\"reason\":\"{s}\"}}\n", .{escaped});
-            try stdout.flush();
-
-            return 2; // Block exit
-        },
     }
 }
 
-/// Count open alice-review issues using tissue library directly
-/// Returns 0 if tissue store unavailable or no issues found
+/// Count open alice-review issues
 fn countOpenAliceReviewIssues(allocator: std.mem.Allocator) u32 {
-    const tissue = @import("tissue");
-
-    // Discover and open tissue store
     const store_dir = tissue.store.discoverStoreDir(allocator) catch return 0;
     defer allocator.free(store_dir);
 
     var store = tissue.store.Store.open(allocator, store_dir) catch return 0;
     defer store.deinit();
 
-    // Count open issues with alice-review tag
     return store.countOpenIssuesByTag("alice-review") catch 0;
 }
-
