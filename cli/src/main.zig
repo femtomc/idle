@@ -221,6 +221,11 @@ fn runInitLoop(allocator: std.mem.Allocator) !u8 {
 }
 
 fn formatIso8601(timestamp: i64, buf: []u8) []const u8 {
+    // Guard against negative timestamps (pre-1970)
+    if (timestamp < 0) {
+        return "1970-01-01T00:00:00Z";
+    }
+
     // Convert Unix timestamp to ISO 8601 using EpochSeconds
     const epoch: std.time.epoch.EpochSeconds = .{ .secs = @intCast(timestamp) };
     const day_seconds = epoch.getDaySeconds();

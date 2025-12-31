@@ -134,7 +134,7 @@ Loop state is stored as JSON in jwz messages on the `loop:current` topic:
 
 ```json
 {
-  "schema": 2,
+  "schema": 1,
   "event": "STATE",
   "run_id": "loop-1735500000-12345",
   "updated_at": "2025-12-30T00:00:00Z",
@@ -261,7 +261,7 @@ Config is stored in the jwz loop state:
 
 ```json
 {
-  "schema": 2,
+  "schema": 1,
   "config": {
     "disabled": false,
     "trace": false
