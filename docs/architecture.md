@@ -107,38 +107,41 @@ SessionStart ─┐
 
 ### Hook Implementations
 
-**SessionStart** (`session-start-hook.sh`)
-Injects minimal agent awareness. Context pointing to alice.
+All hooks are implemented in the Zig CLI (`idle <command>`) for performance and type safety.
 
-**Stop** (`stop-hook.sh`)
+**SessionStart** (`idle session-start`)
+Injects loop context and agent awareness. Shows active loop state (mode, iteration, issue, worktree) and alice usage guidance.
+
+**Stop** (`idle stop`)
 The core loop mechanism. On agent exit:
-1. Read loop state from `jwz read "loop:current"`
-2. Check for completion signals (`<loop-done>COMPLETE</loop-done>`)
-3. If complete and issue mode: run auto-land, pick next issue
-4. If incomplete: increment iteration, emit `block` decision to force re-entry
+1. Sync transcript to jwz for persistence
+2. Read loop state from zawinski store
+3. Check for completion signals (`<loop-done>COMPLETE</loop-done>`)
+4. If COMPLETE/STUCK and not reviewed: block for alice review
+5. If reviewed and complete: auto-land (issue mode), post DONE state
+6. If incomplete: increment iteration, emit `block` decision to force re-entry
 
-**PreToolUse** (`pre-tool-use-hook.sh`)
+**PreToolUse** (`idle pre-tool-use`)
 Safety guardrails for Bash commands. Blocks:
 - `git push --force` to main/master
 - `git reset --hard`
 - `rm -rf /` or `rm -rf ~`
 - `DROP DATABASE`
 
-**PreCompact** (`pre-compact-hook.sh`)
+**PreCompact** (`idle pre-compact`)
 Before context compaction, writes a recovery anchor to `loop:anchor` containing:
 - Current goal/issue
 - Iteration progress
-- Recent commits
-- Modified files
+- Alice reminder for post-compaction context
 
 After compaction, agents can read this anchor to restore context.
 
-**SubagentStop** (`subagent-stop-hook.sh`)
+**SubagentStop** (`idle subagent-stop`)
 Enforces the second-opinion requirement for alice. When alice completes, the hook verifies:
-1. A `codex exec` or `claude -p` command was invoked
+1. A `codex exec` or `gemini exec` command was invoked
 2. The output contains a `## Second Opinion` section with content
 
-If either check fails, the hook blocks completion and instructs alice to consult an external model before proceeding.
+If either check fails, blocks completion. On success, injects guidance for acting on alice's review.
 
 ### State Schema
 
@@ -364,6 +367,20 @@ git config idle.baseRef main  # Base branch for worktrees
 idle/
 ├── agents/
 │   └── alice.md          # Deep reasoning agent
+├── cli/                  # Zig CLI implementation
+│   └── src/
+│       ├── main.zig      # CLI entry point
+│       ├── hooks/        # Hook implementations
+│       │   ├── stop.zig
+│       │   ├── session_start.zig
+│       │   ├── subagent_stop.zig
+│       │   ├── pre_compact.zig
+│       │   └── pre_tool_use.zig
+│       └── lib/          # Shared modules
+│           ├── state_machine.zig
+│           ├── event_parser.zig
+│           ├── transcript.zig
+│           └── ...
 ├── commands/
 │   ├── loop.md           # Main loop command
 │   └── cancel.md         # Loop cancellation
@@ -376,21 +393,13 @@ idle/
 │   ├── querying-codex/   # OpenAI second opinions
 │   └── querying-gemini/  # Google third opinions
 ├── hooks/
-│   ├── hooks.json        # Hook configuration
-│   ├── session-start-hook.sh
-│   ├── stop-hook.sh      # Core loop mechanism
-│   ├── pre-tool-use-hook.sh  # Safety guardrails
-│   ├── pre-compact-hook.sh   # Recovery anchors
-│   └── subagent-stop-hook.sh
-├── tui/                  # Terminal UI (in development)
-│   └── src/
+│   └── hooks.json        # Hook configuration (points to cli)
 ├── docs/
 │   ├── architecture.md   # This document
 │   └── references.bib    # Design rationale sources
 ├── README.md
 ├── CHANGELOG.md
-├── CONTRIBUTING.md
-└── install.sh
+└── CONTRIBUTING.md
 ```
 
 ## References

@@ -247,7 +247,7 @@ test "hasSecondOpinion: empty section" {
     try std.testing.expect(!hasSecondOpinion(text));
 }
 
-test "hasSecondOpinion: TODO placeholder" {
+test "hasSecondOpinion: rejects TODO placeholder" {
     const text = "## Second Opinion\n\nTODO: add second opinion\n\n## Recommendation";
     try std.testing.expect(!hasSecondOpinion(text));
 }
