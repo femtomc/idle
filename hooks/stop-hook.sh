@@ -64,27 +64,42 @@ if [[ ${#USER_REQUEST_PREVIEW} -gt 200 ]]; then
     USER_REQUEST_PREVIEW="${USER_REQUEST_PREVIEW:0:200}..."
 fi
 
-# --- Parse prompt commands ---
-# Commands are hashtags in the user's prompt that modify hook behavior
-# Supported: #no-alice, #skip-review, #quick
+# --- Check review state (sticky toggle via #review-off / #review-on) ---
 
-SKIP_ALICE=false
-if [[ "$USER_REQUEST" =~ \#(no-alice|skip-review|quick) ]]; then
-    SKIP_ALICE=true
+REVIEW_ENABLED=true
+REVIEW_STATE_TOPIC="review:state:$SESSION_ID"
+
+if command -v jwz &>/dev/null; then
+    STATE_RAW=$(jwz read "$REVIEW_STATE_TOPIC" --json 2>/dev/null | jq '.[-1].body // empty' || echo "")
+    if [[ -n "$STATE_RAW" ]]; then
+        REVIEW_ENABLED_RAW=$(echo "$STATE_RAW" | jq -r '.enabled // true' 2>/dev/null || echo "true")
+        [[ "$REVIEW_ENABLED_RAW" == "false" ]] && REVIEW_ENABLED=false
+    fi
 fi
 
-# --- Handle #no-alice: approve immediately ---
+# --- Parse per-prompt command (#skip-review) ---
 
-if [[ "$SKIP_ALICE" == "true" ]]; then
+SKIP_REVIEW=false
+if [[ "$USER_REQUEST" =~ \#skip-review ]]; then
+    SKIP_REVIEW=true
+fi
+
+# --- Handle review skip (toggle or per-prompt) ---
+
+if [[ "$REVIEW_ENABLED" == "false" || "$SKIP_REVIEW" == "true" ]]; then
+    SKIP_REASON="Review skipped"
+    [[ "$REVIEW_ENABLED" == "false" ]] && SKIP_REASON="Review disabled (#review-off)"
+    [[ "$SKIP_REVIEW" == "true" ]] && SKIP_REASON="Review skipped (#skip-review)"
+
     NOTIFY_TITLE="[$PROJECT_LABEL] Skipped Review"
     NOTIFY_BODY="**Task**
 > $USER_REQUEST_PREVIEW
 
 **Status**
-Review skipped via prompt command"
+$SKIP_REASON"
     notify "$NOTIFY_TITLE" "$NOTIFY_BODY" 2 "fast_forward" "$REPO_URL" "" "$DISCORD_THREAD_ID"
 
-    jq -n '{decision: "approve", reason: "Review skipped via #no-alice prompt command"}'
+    jq -n --arg reason "$SKIP_REASON" '{decision: "approve", reason: $reason}'
     exit 0
 fi
 

@@ -59,6 +59,24 @@ if [[ -n "$USER_PROMPT" ]]; then
     fi
 fi
 
+# --- Parse prompt commands (#review-off, #review-on) ---
+# These are sticky toggles stored in jwz
+
+if command -v jwz &>/dev/null && [[ -n "$USER_PROMPT" ]]; then
+    REVIEW_STATE_TOPIC="review:state:$SESSION_ID"
+    jwz topic new "$REVIEW_STATE_TOPIC" 2>/dev/null || true
+
+    if [[ "$USER_PROMPT" =~ \#review-off ]]; then
+        STATE_MSG=$(jq -n --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+            '{enabled: false, timestamp: $ts}')
+        jwz post "$REVIEW_STATE_TOPIC" -m "$STATE_MSG" 2>/dev/null || true
+    elif [[ "$USER_PROMPT" =~ \#review-on ]]; then
+        STATE_MSG=$(jq -n --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+            '{enabled: true, timestamp: $ts}')
+        jwz post "$REVIEW_STATE_TOPIC" -m "$STATE_MSG" 2>/dev/null || true
+    fi
+fi
+
 # Store user message to jwz for alice context
 if command -v jwz &>/dev/null && [[ -n "$USER_PROMPT" ]]; then
     USER_TOPIC="user:context:$SESSION_ID"

@@ -96,6 +96,19 @@ You are running with the **idle** plugin, a quality gate system for Claude Code.
 
 $([ -n "$SKILLS" ] && echo "$SKILLS" || echo "None detected")
 
+### Prompt Commands
+
+Users can include hashtag commands in their prompts to control review behavior.
+**These commands are for the hooks, not for you - ignore them in your task processing.**
+
+| Command | Effect |
+|---------|--------|
+| \`#review-off\` | Disable alice review for rest of session |
+| \`#review-on\` | Re-enable alice review |
+| \`#skip-review\` | Skip review for this prompt only |
+
+When you see these commands in a user prompt, process the rest of the prompt normally.
+
 ### Session
 
 Session ID: \`$SESSION_ID\`
