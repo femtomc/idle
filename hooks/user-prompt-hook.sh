@@ -38,7 +38,7 @@ if [[ -n "$USER_PROMPT" ]]; then
     NTFY_TITLE="[$PROJECT_LABEL] New task"
     NTFY_BODY="$PROMPT_PREVIEW"
 
-    ntfy_post "$NTFY_TITLE" "$NTFY_BODY" 3 "speech_balloon" "$REPO_URL"
+    notify "$NTFY_TITLE" "$NTFY_BODY" 3 "speech_balloon" "$REPO_URL"
 fi
 
 # Store user message to jwz for alice context

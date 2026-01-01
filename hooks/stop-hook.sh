@@ -85,7 +85,7 @@ if [[ "$ALICE_DECISION" == "COMPLETE" || "$ALICE_DECISION" == "APPROVED" ]]; the
     NTFY_BODY="Task: $USER_REQUEST_PREVIEW
 
 $ALICE_SUMMARY"
-    ntfy_post "$NTFY_TITLE" "$NTFY_BODY" 3 "white_check_mark" "$REPO_URL"
+    notify "$NTFY_TITLE" "$NTFY_BODY" 3 "white_check_mark" "$REPO_URL"
 
     jq -n --arg reason "$REASON" '{decision: "approve", reason: $reason}'
     exit 0
@@ -112,7 +112,7 @@ $ALICE_SUMMARY"
 
 Alice says:
 $ALICE_MESSAGE"
-    ntfy_post "$NTFY_TITLE" "$NTFY_BODY" 4 "x" "$REPO_URL"
+    notify "$NTFY_TITLE" "$NTFY_BODY" 4 "x" "$REPO_URL"
 
     jq -n --arg reason "$REASON" '{decision: "block", reason: $reason}'
     exit 0
@@ -131,7 +131,7 @@ NTFY_TITLE="[$PROJECT_LABEL] ⏳ Awaiting alice review"
 NTFY_BODY="Task: $USER_REQUEST_PREVIEW
 
 Agent attempting to exit without alice review."
-ntfy_post "$NTFY_TITLE" "$NTFY_BODY" 3 "hourglass" "$REPO_URL"
+notify "$NTFY_TITLE" "$NTFY_BODY" 3 "hourglass" "$REPO_URL"
 
 jq -n --arg reason "$REASON" '{decision: "block", reason: $reason}'
 exit 0

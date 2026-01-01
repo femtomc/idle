@@ -68,7 +68,7 @@ Skills: ${SKILLS:-none}
 
 Session: ${SESSION_ID:0:8}"
 
-ntfy_post "$NTFY_TITLE" "$NTFY_BODY" 3 "rocket" "$REPO_URL"
+notify "$NTFY_TITLE" "$NTFY_BODY" 3 "rocket" "$REPO_URL"
 
 # Build context message for agent
 CONTEXT="## idle Plugin Active

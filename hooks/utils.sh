@@ -52,11 +52,80 @@ get_repo_url() {
     echo "$remote_url"
 }
 
-# Post to ntfy with rich formatting
-# Usage: ntfy_post "title" "body" [priority] [tags] [click_url]
+# Unified notification function - dispatches to Discord or ntfy
+# Usage: notify "title" "body" [priority] [emoji] [repo_url]
 # Priority: 1=min, 2=low, 3=default, 4=high, 5=urgent
-# Tags: comma-separated emoji names (e.g., "rocket,white_check_mark")
-# Click URL: URL to open when notification is tapped
+notify() {
+    local title="$1"
+    local body="$2"
+    local priority="${3:-3}"
+    local emoji="${4:-}"
+    local repo_url="${5:-}"
+
+    # Prefer Discord if configured, fall back to ntfy
+    if [[ -n "${IDLE_DISCORD_WEBHOOK:-}" ]]; then
+        discord_post "$title" "$body" "$priority" "$emoji" "$repo_url"
+    elif [[ -n "${IDLE_NTFY_TOPIC:-}" ]]; then
+        ntfy_post "$title" "$body" "$priority" "$emoji" "$repo_url"
+    fi
+}
+
+# Post to Discord webhook with rich embed
+# Colors: green=5763719, red=15548997, yellow=16705372, blue=5793266
+discord_post() {
+    local title="$1"
+    local body="$2"
+    local priority="${3:-3}"
+    local emoji="${4:-}"
+    local repo_url="${5:-}"
+
+    local webhook="${IDLE_DISCORD_WEBHOOK:-}"
+    if [[ -z "$webhook" ]]; then
+        return 0
+    fi
+
+    # Map priority to color
+    local color=5793266  # blue (default)
+    case "$priority" in
+        4|5) color=15548997 ;;  # red (high/urgent)
+        1|2) color=8421504 ;;   # gray (low)
+    esac
+
+    # Map emoji tag to actual emoji
+    local emoji_char=""
+    case "$emoji" in
+        rocket) emoji_char="🚀" ;;
+        speech_balloon) emoji_char="💬" ;;
+        white_check_mark) emoji_char="✅" ;;
+        x) emoji_char="❌" ;;
+        hourglass) emoji_char="⏳" ;;
+    esac
+
+    # Prepend emoji to title if present
+    [[ -n "$emoji_char" ]] && title="$emoji_char $title"
+
+    # Build JSON payload
+    local payload
+    if [[ -n "$repo_url" ]]; then
+        payload=$(jq -n \
+            --arg title "$title" \
+            --arg desc "$body" \
+            --argjson color "$color" \
+            --arg url "$repo_url" \
+            '{embeds: [{title: $title, description: $desc, color: $color, url: $url}]}')
+    else
+        payload=$(jq -n \
+            --arg title "$title" \
+            --arg desc "$body" \
+            --argjson color "$color" \
+            '{embeds: [{title: $title, description: $desc, color: $color}]}')
+    fi
+
+    # Post in background to not block hook
+    curl -s -X POST -H "Content-Type: application/json" -d "$payload" "$webhook" &>/dev/null &
+}
+
+# Post to ntfy with rich formatting (legacy, kept for compatibility)
 ntfy_post() {
     local title="$1"
     local body="$2"
@@ -64,17 +133,14 @@ ntfy_post() {
     local tags="${4:-}"
     local click_url="${5:-}"
 
-    # Skip if no topic configured
     local topic="${IDLE_NTFY_TOPIC:-}"
     if [[ -z "$topic" ]]; then
         return 0
     fi
 
-    # Build ntfy URL (support custom server via IDLE_NTFY_SERVER)
     local server="${IDLE_NTFY_SERVER:-https://ntfy.sh}"
     local url="$server/$topic"
 
-    # Build curl args
     local -a args=(
         -s
         -X POST
@@ -92,7 +158,6 @@ ntfy_post() {
 
     args+=(-d "$body" "$url")
 
-    # Post in background to not block hook
     curl "${args[@]}" &>/dev/null &
 }
 
