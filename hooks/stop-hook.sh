@@ -36,6 +36,17 @@ PROJECT_LABEL="$PROJECT_NAME"
 
 ALICE_TOPIC="alice:status:$SESSION_ID"
 USER_CONTEXT_TOPIC="user:context:$SESSION_ID"
+DISCORD_TOPIC="discord:thread:$SESSION_ID"
+
+# --- Get Discord thread ID if exists ---
+
+DISCORD_THREAD_ID=""
+if command -v jwz &>/dev/null; then
+    DISCORD_RAW=$(jwz read "$DISCORD_TOPIC" --json 2>/dev/null | jq -r '.[-1].body // empty' || echo "")
+    if [[ -n "$DISCORD_RAW" ]]; then
+        DISCORD_THREAD_ID=$(echo "$DISCORD_RAW" | jq -r '.thread_id // ""' 2>/dev/null || echo "")
+    fi
+fi
 
 # --- Get user's original request for context ---
 
@@ -51,6 +62,30 @@ fi
 USER_REQUEST_PREVIEW="$USER_REQUEST"
 if [[ ${#USER_REQUEST_PREVIEW} -gt 200 ]]; then
     USER_REQUEST_PREVIEW="${USER_REQUEST_PREVIEW:0:200}..."
+fi
+
+# --- Parse prompt commands ---
+# Commands are hashtags in the user's prompt that modify hook behavior
+# Supported: #no-alice, #skip-review, #quick
+
+SKIP_ALICE=false
+if [[ "$USER_REQUEST" =~ \#(no-alice|skip-review|quick) ]]; then
+    SKIP_ALICE=true
+fi
+
+# --- Handle #no-alice: approve immediately ---
+
+if [[ "$SKIP_ALICE" == "true" ]]; then
+    NOTIFY_TITLE="[$PROJECT_LABEL] Skipped Review"
+    NOTIFY_BODY="**Task**
+> $USER_REQUEST_PREVIEW
+
+**Status**
+Review skipped via prompt command"
+    notify "$NOTIFY_TITLE" "$NOTIFY_BODY" 2 "fast_forward" "$REPO_URL" "" "$DISCORD_THREAD_ID"
+
+    jq -n '{decision: "approve", reason: "Review skipped via #no-alice prompt command"}'
+    exit 0
 fi
 
 # --- Check: Has alice reviewed this session? ---
@@ -80,14 +115,14 @@ if [[ "$ALICE_DECISION" == "COMPLETE" || "$ALICE_DECISION" == "APPROVED" ]]; the
     [[ -n "$ALICE_MSG_ID" ]] && REASON="$REASON (msg: $ALICE_MSG_ID)"
     [[ -n "$ALICE_SUMMARY" ]] && REASON="$REASON - $ALICE_SUMMARY"
 
-    # Post approval notification
+    # Post approval notification (to thread if exists)
     NOTIFY_TITLE="[$PROJECT_LABEL] Approved"
     NOTIFY_BODY="**Task**
 > $USER_REQUEST_PREVIEW
 
 **Result**
 $ALICE_SUMMARY"
-    notify "$NOTIFY_TITLE" "$NOTIFY_BODY" 3 "white_check_mark" "$REPO_URL"
+    notify "$NOTIFY_TITLE" "$NOTIFY_BODY" 3 "white_check_mark" "$REPO_URL" "" "$DISCORD_THREAD_ID"
 
     jq -n --arg reason "$REASON" '{decision: "approve", reason: $reason}'
     exit 0
@@ -105,7 +140,7 @@ $ALICE_SUMMARY"
 
 alice says: $ALICE_MESSAGE"
 
-    # Post block notification (high priority)
+    # Post block notification (high priority, to thread if exists)
     NOTIFY_TITLE="[$PROJECT_LABEL] Blocked"
     NOTIFY_BODY="**Task**
 > $USER_REQUEST_PREVIEW
@@ -118,7 +153,7 @@ $ALICE_SUMMARY"
 **Action Required**
 $ALICE_MESSAGE"
     fi
-    notify "$NOTIFY_TITLE" "$NOTIFY_BODY" 5 "x" "$REPO_URL"
+    notify "$NOTIFY_TITLE" "$NOTIFY_BODY" 5 "x" "$REPO_URL" "" "$DISCORD_THREAD_ID"
 
     jq -n --arg reason "$REASON" '{decision: "block", reason: $reason}'
     exit 0
@@ -132,14 +167,14 @@ Use: Task tool with subagent_type='idle:alice' and prompt including SESSION_ID=$
 
 Alice will read your conversation context and decide if the work is complete or needs fixes."
 
-# Post pending review notification
+# Post pending review notification (to thread if exists)
 NOTIFY_TITLE="[$PROJECT_LABEL] Awaiting Review"
 NOTIFY_BODY="**Task**
 > $USER_REQUEST_PREVIEW
 
 **Status**
 Agent exiting without alice review. Spawning alice for approval..."
-notify "$NOTIFY_TITLE" "$NOTIFY_BODY" 4 "hourglass" "$REPO_URL"
+notify "$NOTIFY_TITLE" "$NOTIFY_BODY" 4 "hourglass" "$REPO_URL" "" "$DISCORD_THREAD_ID"
 
 jq -n --arg reason "$REASON" '{decision: "block", reason: $reason}'
 exit 0
