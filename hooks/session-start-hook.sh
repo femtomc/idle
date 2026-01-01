@@ -119,9 +119,9 @@ When you see these commands in a user prompt, process the rest of the prompt nor
 Session ID: \`$SESSION_ID\`
 "
 
-# Output JSON with context
+# Output JSON with context (hookSpecificOutput.additionalContext for SessionStart)
 jq -n \
     --arg context "$CONTEXT" \
-    '{decision: "approve", context: $context}'
+    '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $context}}'
 
 exit 0
