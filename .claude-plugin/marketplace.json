@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "idle",
-      "version": "2.9.1",
+      "version": "3.0.0",
       "description": "Quality gate for Claude Code. Every exit requires alice review. Skills: reviewing, researching, issue-tracking, technical-writing, bib-managing.",
       "source": "./",
       "author": {
