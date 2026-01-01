@@ -1,6 +1,6 @@
 # idle
 
-Quality gate for Claude Code. Every exit requires review by a separate agent.
+Ad infinitum quality gate for Claude Code. Forces Claude to continue working until passing a review by a separate agent.
 
 ## Motivation
 
