@@ -146,19 +146,34 @@ Invoke alice with this prompt format:
 ---
 SESSION_ID=$SESSION_ID
 
-Changes since last review:
+## Work performed
+
+<Include relevant sections based on what you did>
+
+### Context (if you referenced issues or messages):
+- tissue issue <id>: <title or summary>
+- jwz message <topic>: <what it informed>
+
+### Code changes (if any files were modified):
 - <file>: <what changed>
-- <file>: <what changed>
+
+### Research findings (if you explored/investigated):
+- <what you searched for>: <what you found or concluded>
+
+### Planning outcomes (if you made or refined a plan):
+- <decision or step>: <the outcome>
 ---
 
 RULES:
-- List changes as facts only (file + what), no justifications
-- Do NOT summarize intent or explain why
+- Report ALL work you performed, not just code changes
+- List facts only (what you did, what you found), no justifications
+- Do NOT summarize intent or explain why you chose an approach
 - Do NOT editorialize or argue your case
+- Include relevant details: files read, searches run, conclusions reached
 - Alice forms her own judgment from the user's prompt transcript
 
 Alice will read jwz topic 'user:context:$SESSION_ID' for the user's actual request
-and evaluate whether YOUR changes satisfy THE USER's desires (not your interpretation)."
+and evaluate whether YOUR work satisfies THE USER's desires (not your interpretation)."
 
 jq -n --arg reason "$REASON" '{decision: "block", reason: $reason}'
 exit 0
