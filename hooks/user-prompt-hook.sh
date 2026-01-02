@@ -70,14 +70,14 @@ if command -v jwz &>/dev/null && [[ -n "$USER_PROMPT" ]]; then
         STATE_MSG=$(jq -n --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
             '{enabled: true, timestamp: $ts}')
         jwz post "$REVIEW_STATE_TOPIC" -m "$STATE_MSG" 2>/dev/null || true
-        printf "idle: review mode ON\n" >&2
+        IDLE_MODE_MSG="idle: review mode ON"
     elif [[ "$USER_PROMPT" =~ ^#[Ii][Dd][Ll][Ee]:[Oo][Ff][Ff]([[:space:]]|$) ]]; then
         # Turn off review
         jwz topic new "$REVIEW_STATE_TOPIC" 2>/dev/null || true
         STATE_MSG=$(jq -n --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
             '{enabled: false, timestamp: $ts}')
         jwz post "$REVIEW_STATE_TOPIC" -m "$STATE_MSG" 2>/dev/null || true
-        printf "idle: review mode OFF\n" >&2
+        IDLE_MODE_MSG="idle: review mode OFF"
     fi
 fi
 
@@ -107,5 +107,9 @@ if command -v jwz &>/dev/null && [[ -n "$USER_PROMPT" ]]; then
 fi
 
 # Always approve - this hook just captures, doesn't gate
-echo '{"decision": "approve"}'
+if [[ -n "$IDLE_MODE_MSG" ]]; then
+    jq -n --arg msg "$IDLE_MODE_MSG" '{decision: "approve", hookSpecificOutput: {hookEventName: "UserPromptSubmit", additionalContext: $msg}}'
+else
+    echo '{"decision": "approve"}'
+fi
 exit 0
