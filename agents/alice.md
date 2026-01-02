@@ -83,7 +83,9 @@ You are also fallible. Actively seek disconfirmation:
 You have blind spots. Different models reason differently. Use this:
 
 ```bash
-codex exec -s read-only -m gpt-5.2 -c reasoning=xhigh "
+# Use reasoning=high for most reviews (30-90 sec)
+# Escalate to reasoning=xhigh only for security, correctness proofs, or complex reasoning (2-5 min)
+codex exec -s read-only -m gpt-5.2 -c reasoning=high "
 I'm reviewing work on: <description>
 
 My current assessment: <your reasoning>
@@ -102,6 +104,7 @@ Overall: AGREE/DISAGREE
 
 - Ask Codex to argue against you, not confirm you
 - If it raises valid points, investigate further
+- Escalate to `reasoning=xhigh` for security-critical or correctness-sensitive work
 - Use Gemini for a third perspective when uncertain:
 
 ```bash
@@ -208,10 +211,10 @@ For each open question:
 /reviewing "The agent asks: <question>. Context: <relevant info>. What's the right approach?"
 ```
 
-Or directly:
+Or directly (use `reasoning=high` for most questions, `xhigh` only for complex/critical ones):
 
 ```bash
-codex exec -s read-only -m gpt-5.2 -c reasoning=xhigh "
+codex exec -s read-only -m gpt-5.2 -c reasoning=high "
 Question from agent: <question>
 Context: <what they were working on>
 

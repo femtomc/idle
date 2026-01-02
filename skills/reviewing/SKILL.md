@@ -50,10 +50,30 @@ codex exec -s read-only -m gpt-5.2 -c reasoning=xhigh "<prompt>"
 
 ### Reasoning Levels
 
+**Choose the right level for the task.** Higher reasoning = more time.
+
+| Level | Flag | Time | When to Use |
+|-------|------|------|-------------|
+| **xhigh** | `-c reasoning=xhigh` | 2-5 min | Security, correctness proofs, high-stakes architecture |
+| **high** | `-c reasoning=high` | 30-90 sec | Standard code review, design tradeoffs, edge cases |
+| **medium** | `-c reasoning=medium` | 10-30 sec | Straightforward questions, sanity checks |
+| **(default)** | *(omit flag)* | 5-15 sec | Quick opinions, simple validations |
+
+**Guidance:**
+- Start with `high` for most review tasks—it's the sweet spot
+- Escalate to `xhigh` only when correctness is critical or reasoning is complex
+- Use `medium` or default for simple questions where speed matters
+- If `xhigh` times out or you're waiting too long, consider whether `high` suffices
+
 ```bash
--c reasoning=xhigh   # Critical: security, correctness proofs
--c reasoning=high    # Standard: code review, design tradeoffs
-# (omit)             # Quick opinions
+# Most reviews
+codex exec -s read-only -m gpt-5.2 -c reasoning=high "..."
+
+# Critical/complex only
+codex exec -s read-only -m gpt-5.2 -c reasoning=xhigh "..."
+
+# Quick sanity check
+codex exec -s read-only -m gpt-5.2 "..."
 ```
 
 ## Gemini (Google)
