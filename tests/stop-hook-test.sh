@@ -36,14 +36,14 @@ echo "=== Stop Hook Tests ==="
 echo ""
 
 # ============================================================================
-# TEST 1: stop_hook_active bypass
+# TEST 1: No jwz store → fail-open (review not enabled)
 # ============================================================================
-echo "--- Test 1: stop_hook_active bypass ---"
+echo "--- Test 1: No jwz store (fail-open) ---"
 
-test_case "stop_hook_active=true allows exit" "approve" '{
+test_case "No jwz store approves (review not enabled)" "approve" '{
   "session_id": "test-123",
   "cwd": "'"$TEMP_DIR"'",
-  "stop_hook_active": true
+  "stop_hook_active": false
 }'
 
 # ============================================================================
@@ -79,6 +79,102 @@ if echo "$result" | jq -e '.decision and .reason' > /dev/null 2>&1; then
 else
     echo "✗ Output format invalid: $result"
     ((fail++)) || true
+fi
+
+# ============================================================================
+# TEST 4: Alice ISSUES always blocks
+# ============================================================================
+echo ""
+echo "--- Test 4: Alice ISSUES blocks ---"
+
+if command -v jwz &>/dev/null; then
+    # Set up jwz store
+    JWZ_TEST_DIR="$TEMP_DIR/jwz-test"
+    mkdir -p "$JWZ_TEST_DIR"
+    cd "$JWZ_TEST_DIR"
+    jwz init 2>/dev/null || true
+
+    SESSION="test-issues-blocking"
+
+    # Enable review
+    jwz topic new "review:state:$SESSION" 2>/dev/null || true
+    jwz post "review:state:$SESSION" -m '{"enabled": true, "timestamp": "2024-01-01T00:00:00Z"}' 2>/dev/null || true
+
+    # Post alice ISSUES decision
+    jwz topic new "alice:status:$SESSION" 2>/dev/null || true
+    jwz post "alice:status:$SESSION" -m '{"decision": "ISSUES", "summary": "Test issue found", "message_to_agent": "Fix the bug"}' 2>/dev/null || true
+
+    # Alice ISSUES always blocks - no escape hatch
+    test_case "Alice ISSUES blocks" "block" '{
+      "session_id": "'"$SESSION"'",
+      "cwd": "'"$JWZ_TEST_DIR"'",
+      "stop_hook_active": false
+    }'
+else
+    echo "⊘ Skipping jwz tests (jwz not available)"
+fi
+
+# ============================================================================
+# TEST 5: Alice APPROVED allows exit
+# ============================================================================
+echo ""
+echo "--- Test 5: Alice APPROVED allows exit ---"
+
+if command -v jwz &>/dev/null; then
+    JWZ_APPROVE_DIR="$TEMP_DIR/jwz-approve"
+    mkdir -p "$JWZ_APPROVE_DIR"
+    cd "$JWZ_APPROVE_DIR"
+    jwz init 2>/dev/null || true
+
+    SESSION="test-approved"
+
+    # Enable review
+    jwz topic new "review:state:$SESSION" 2>/dev/null || true
+    jwz post "review:state:$SESSION" -m '{"enabled": true, "timestamp": "2024-01-01T00:00:00Z"}' 2>/dev/null || true
+
+    # Post alice APPROVED decision
+    jwz topic new "alice:status:$SESSION" 2>/dev/null || true
+    jwz post "alice:status:$SESSION" -m '{"decision": "APPROVED", "summary": "Work complete"}' 2>/dev/null || true
+
+    test_case "Alice APPROVED allows exit" "approve" '{
+      "session_id": "'"$SESSION"'",
+      "cwd": "'"$JWZ_APPROVE_DIR"'",
+      "stop_hook_active": false
+    }'
+else
+    echo "⊘ Skipping jwz tests (jwz not available)"
+fi
+
+# ============================================================================
+# TEST 6: No alice approval → always block (no loop prevention escape hatch)
+# ============================================================================
+echo ""
+echo "--- Test 6: No approval = block (simple rule) ---"
+
+if command -v jwz &>/dev/null; then
+    JWZ_PENDING_DIR="$TEMP_DIR/jwz-pending"
+    mkdir -p "$JWZ_PENDING_DIR"
+    cd "$JWZ_PENDING_DIR"
+    jwz init 2>/dev/null || true
+
+    SESSION="test-pending"
+
+    # Enable review but NO alice approval
+    jwz topic new "review:state:$SESSION" 2>/dev/null || true
+    jwz post "review:state:$SESSION" -m '{"enabled": true, "timestamp": "2024-01-01T00:00:00Z"}' 2>/dev/null || true
+
+    # alice topic exists but has PENDING (not APPROVED)
+    jwz topic new "alice:status:$SESSION" 2>/dev/null || true
+    jwz post "alice:status:$SESSION" -m '{"decision": "PENDING", "summary": "Waiting for review"}' 2>/dev/null || true
+
+    # PENDING always blocks - no escape hatch
+    test_case "PENDING blocks (alice must approve)" "block" '{
+      "session_id": "'"$SESSION"'",
+      "cwd": "'"$JWZ_PENDING_DIR"'",
+      "stop_hook_active": false
+    }'
+else
+    echo "⊘ Skipping jwz tests (jwz not available)"
 fi
 
 # ============================================================================

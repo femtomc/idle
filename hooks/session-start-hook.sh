@@ -51,8 +51,8 @@ You are running with the **idle** plugin.
 
 | Tool | Status | Purpose |
 |------|--------|---------|
-| tissue | $([ "$TISSUE_AVAILABLE" = "true" ] && echo "✓" || echo "✗") | Issue tracking (\`tissue list\`, \`tissue post\`) |
-| jwz | $([ "$JWZ_AVAILABLE" = "true" ] && echo "✓" || echo "✗") | Agent messaging (\`jwz list\`, \`jwz post\`) |
+| tissue | $([ "$TISSUE_AVAILABLE" = "true" ] && echo "✓" || echo "✗") | Issue tracking (\`tissue list\`, \`tissue new\`) |
+| jwz | $([ "$JWZ_AVAILABLE" = "true" ] && echo "✓" || echo "✗") | Agent messaging (\`jwz read\`, \`jwz post\`) |
 | codex | $([ "$CODEX_AVAILABLE" = "true" ] && echo "✓" || echo "✗") | External model queries |
 | gemini | $([ "$GEMINI_AVAILABLE" = "true" ] && echo "✓" || echo "✗") | External model queries |
 

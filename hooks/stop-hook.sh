@@ -1,6 +1,6 @@
 #!/bin/bash
 # idle STOP hook
-# Gates exit on alice review - alice makes the judgment call
+# Gates exit on alice review - if review is enabled, alice must approve.
 #
 # Output: JSON with decision (block/approve) and reason
 # Exit 0 for both - decision field controls behavior
@@ -9,13 +9,6 @@ set -euo pipefail
 
 # Read hook input from stdin
 INPUT=$(cat)
-
-# Check if stop hook already triggered (prevent infinite loops)
-STOP_HOOK_ACTIVE=$(echo "$INPUT" | jq -r '.stop_hook_active // false')
-if [[ "$STOP_HOOK_ACTIVE" == "true" ]]; then
-    jq -n '{decision: "approve", reason: "Stop hook already active"}'
-    exit 0
-fi
 
 # Extract session info
 CWD=$(echo "$INPUT" | jq -r '.cwd // "."')
@@ -40,7 +33,7 @@ JWZ_TMPFILE=$(mktemp)
 trap "rm -f $JWZ_TMPFILE" EXIT
 
 set +e
-jwz list "$REVIEW_STATE_TOPIC" --json > "$JWZ_TMPFILE" 2>&1
+jwz read "$REVIEW_STATE_TOPIC" --json > "$JWZ_TMPFILE" 2>&1
 JWZ_EXIT=$?
 set -e
 
@@ -94,7 +87,7 @@ ALICE_MSG_ID=""
 ALICE_SUMMARY=""
 ALICE_MESSAGE=""
 
-LATEST_RAW=$(jwz list "$ALICE_TOPIC" --json 2>/dev/null | jq '.[0] // empty' || echo "")
+LATEST_RAW=$(jwz read "$ALICE_TOPIC" --json 2>/dev/null | jq '.[0] // empty' || echo "")
 if [[ -n "$LATEST_RAW" ]]; then
     ALICE_MSG_ID=$(echo "$LATEST_RAW" | jq -r '.id // ""')
     LATEST_BODY=$(echo "$LATEST_RAW" | jq -r '.body // ""')
@@ -115,16 +108,17 @@ if [[ "$ALICE_DECISION" == "COMPLETE" || "$ALICE_DECISION" == "APPROVED" ]]; the
     # Reset review state - gate turns off after approval
     RESET_MSG=$(jq -n --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
         '{enabled: false, timestamp: $ts}')
-    jwz post "$REVIEW_STATE_TOPIC" -m "$RESET_MSG" 2>/dev/null || true
+    jwz post "$REVIEW_STATE_TOPIC" -m "$RESET_MSG" >/dev/null 2>&1 || true
 
     jq -n --arg reason "$REASON" '{decision: "approve", reason: $reason}'
     exit 0
 fi
 
-# --- Decision: ISSUES → block, pass alice's message ---
+# --- Alice hasn't approved → block ---
 
+# Build reason with alice's feedback if available
 if [[ "$ALICE_DECISION" == "ISSUES" ]]; then
-    REASON="alice found issues that need to be addressed before exiting."
+    REASON="alice found issues that must be addressed."
     [[ -n "$ALICE_MSG_ID" ]] && REASON="$REASON (review: $ALICE_MSG_ID)"
     [[ -n "$ALICE_SUMMARY" ]] && REASON="$REASON
 
@@ -132,14 +126,8 @@ $ALICE_SUMMARY"
     [[ -n "$ALICE_MESSAGE" ]] && REASON="$REASON
 
 alice says: $ALICE_MESSAGE"
-
-    jq -n --arg reason "$REASON" '{decision: "block", reason: $reason}'
-    exit 0
-fi
-
-# --- No review yet → request alice review ---
-
-REASON="No alice review for this session. You must spawn alice before exiting.
+else
+    REASON="Review is enabled but alice hasn't approved. Spawn alice before exiting.
 
 Invoke alice with this prompt format:
 
@@ -177,6 +165,7 @@ RULES:
 
 Alice will read jwz topic 'user:context:$SESSION_ID' for the user's actual request
 and evaluate whether YOUR work satisfies THE USER's desires (not your interpretation)."
+fi
 
 jq -n --arg reason "$REASON" '{decision: "block", reason: $reason}'
 exit 0

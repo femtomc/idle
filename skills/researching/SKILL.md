@@ -95,5 +95,5 @@ Sources: <url1>, <url2>"
 ```bash
 jwz search "SYNTHESIS:"
 jwz search "FINDING:"
-jwz list "research:<topic>"
+jwz read "research:<topic>"
 ```

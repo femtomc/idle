@@ -46,10 +46,10 @@ tissue show <id>
 
 ### Create issue
 ```bash
-tissue post "title"
-tissue post "title" -t bug              # With tag
-tissue post "title" -p 1                # Priority 1 (highest)
-tissue post "title" -t feature -p 2     # Both
+tissue new "title"
+tissue new "title" -t bug              # With tag
+tissue new "title" -p 1                # Priority 1 (highest)
+tissue new "title" -t feature -p 2     # Both
 ```
 
 ### Update status
@@ -61,7 +61,7 @@ tissue status <id> closed
 
 ### Add comment
 ```bash
-tissue reply <id> -m "message"
+tissue comment <id> -m "message"
 ```
 
 ## Tags and Priority
@@ -117,7 +117,7 @@ Issues get IDs like `auth-a3f2`. The prefix comes from the title:
 
 ```bash
 # Create a bug
-tissue post "Login fails on Safari" -t bug -p 2
+tissue new "Login fails on Safari" -t bug -p 2
 
 # Check ready work
 tissue ready
@@ -126,7 +126,7 @@ tissue ready
 tissue status auth-a3f2 in_progress
 
 # Add finding
-tissue reply auth-a3f2 -m "Root cause: cookie SameSite attribute"
+tissue comment auth-a3f2 -m "Root cause: cookie SameSite attribute"
 
 # Close it
 tissue status auth-a3f2 closed
@@ -153,8 +153,8 @@ Issue topics in jwz follow the pattern `issue:<id>`:
 # Post to issue topic
 jwz post "issue:auth-a3f2" -m "Starting work on this"
 
-# List issue discussion
-jwz list "issue:auth-a3f2"
+# Read issue discussion
+jwz read "issue:auth-a3f2"
 ```
 
 This connects tissue issues with agent discussions.

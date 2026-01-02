@@ -152,7 +152,7 @@ idle complements these tools by adding a review step before the agent exits.
 | Method | Effect |
 |--------|--------|
 | `.idle-disabled` file in project root | Bypass stop hook entirely |
-| `stop_hook_active: true` in hook input | Prevents infinite recursion |
+| `#idle:off` | Disable review for session |
 
 ## Project Structure
 

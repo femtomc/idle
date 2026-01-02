@@ -151,7 +151,7 @@ Git-native issue tracker.
 Alice creates issues tagged `alice-review`:
 
 ```bash
-tissue post "Missing error handling in auth flow" -t alice-review -p 2
+tissue new "Missing error handling in auth flow" -t alice-review -p 2
 ```
 
 The stop hook checks for open alice-review issues before allowing exit.
@@ -246,7 +246,7 @@ claude /plugin install idle@emes
 | Method | Effect |
 |--------|--------|
 | `.idle-disabled` file | Bypass stop hook |
-| `stop_hook_active: true` | Hook already triggered, allows exit |
+| `#idle:off` | Disable review for session |
 
 ## References
 
