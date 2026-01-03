@@ -126,6 +126,12 @@ $ALICE_SUMMARY"
     [[ -n "$ALICE_MESSAGE" ]] && REASON="$REASON
 
 alice says: $ALICE_MESSAGE"
+
+    REASON="$REASON
+
+---
+If you have already addressed these issues, re-invoke alice for a fresh review.
+This review may be stale if you made changes since it was generated."
 else
     REASON="Review is enabled but alice hasn't approved. Spawn alice before exiting.
 
