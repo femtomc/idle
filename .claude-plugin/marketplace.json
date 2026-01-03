@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "idle",
-      "version": "26.1.2.3",
+      "version": "26.1.3",
       "description": "Quality gate for Claude Code. Use #idle to enable review. Skills: reviewing, researching, issue-tracking, technical-writing, bib-managing.",
       "source": "./",
       "author": {
