@@ -176,27 +176,90 @@ Domain-specific context injected into agents.
 | technical-writing | Multi-layer document review |
 | bib-managing | Bibliography curation with bibval |
 
+## Trace Hooks
+
+Trace hooks capture session events to jwz for post-hoc analysis via the `idle` CLI.
+
+### Trace Topics
+
+Events are stored in `trace:{session_id}` topics:
+
+```bash
+jwz read trace:abc123 --json
+```
+
+### Event Types
+
+| Hook | Event Type | Fields |
+|------|------------|--------|
+| SessionStart | `session_start` | timestamp |
+| UserPromptSubmit | `prompt_received` | timestamp, prompt |
+| PostToolUse | `tool_completed` | timestamp, tool_name, tool_input, tool_output |
+| SessionEnd | `session_end` | timestamp |
+
+### Hook Configuration
+
+Hooks are configured in Claude Code settings (`~/.claude/settings.json`):
+
+```json
+{
+  "hooks": {
+    "SessionStart": [{
+      "matcher": "",
+      "hooks": ["$PLUGIN_ROOT/hooks/session-start-hook.sh"]
+    }],
+    "UserPromptSubmit": [{
+      "matcher": "",
+      "hooks": ["$PLUGIN_ROOT/hooks/user-prompt-hook.sh"]
+    }],
+    "Stop": [{
+      "matcher": "",
+      "hooks": ["$PLUGIN_ROOT/hooks/stop-hook.sh"]
+    }],
+    "PostToolUse": [{
+      "matcher": "",
+      "hooks": ["$PLUGIN_ROOT/hooks/post-tool-use-hook.sh"]
+    }],
+    "SessionEnd": [{
+      "matcher": "",
+      "hooks": ["$PLUGIN_ROOT/hooks/session-end-hook.sh"]
+    }]
+  }
+}
+```
+
+Replace `$PLUGIN_ROOT` with the actual plugin path.
+
 ## File Structure
 
 ```
 idle/
 ├── .claude-plugin/
-│   └── plugin.json        # Plugin metadata, hooks reference
+│   └── plugin.json           # Plugin metadata
 ├── agents/
-│   └── alice.md           # Adversarial reviewer
+│   └── alice.md              # Adversarial reviewer
 ├── hooks/
-│   ├── hooks.json         # Hook configuration
-│   └── stop-hook.sh       # Stop hook implementation
+│   ├── session-start-hook.sh # Context injection + trace
+│   ├── user-prompt-hook.sh   # Prompt capture + trace
+│   ├── stop-hook.sh          # Alice review gate
+│   ├── post-tool-use-hook.sh # Tool call tracing
+│   └── session-end-hook.sh   # Session end tracing
 ├── skills/
 │   ├── reviewing/
 │   ├── researching/
 │   ├── issue-tracking/
 │   ├── technical-writing/
 │   └── bib-managing/
+├── src/                      # Zig CLI source
+│   ├── root.zig
+│   ├── trace.zig
+│   └── main.zig
+├── build.zig
+├── build.zig.zon
 ├── docs/
-│   └── architecture.md    # This document
+│   └── architecture.md       # This document
 ├── tests/
-│   └── stop-hook-test.sh  # Hook tests
+│   └── stop-hook-test.sh     # Hook tests
 ├── README.md
 ├── CHANGELOG.md
 └── CONTRIBUTING.md

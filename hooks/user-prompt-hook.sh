@@ -5,10 +5,13 @@
 # Output: JSON (approve to continue)
 # Exit 0 always
 
-set -euo pipefail
+# Ensure we always output valid JSON, even on error
+trap 'echo "{\"decision\": \"approve\"}"; exit 0' ERR
+
+set -uo pipefail
 
 # Read hook input from stdin
-INPUT=$(cat)
+INPUT=$(cat || echo '{}')
 
 # Extract session info and user prompt
 CWD=$(echo "$INPUT" | jq -r '.cwd // "."')
@@ -46,6 +49,7 @@ fi
 if command -v jwz &>/dev/null && [[ -n "$USER_PROMPT" ]]; then
     USER_TOPIC="user:context:$SESSION_ID"
     ALICE_TOPIC="alice:status:$SESSION_ID"
+    TRACE_TOPIC="trace:$SESSION_ID"
     TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
     # Create both topics if they don't exist
@@ -65,6 +69,15 @@ if command -v jwz &>/dev/null && [[ -n "$USER_PROMPT" ]]; then
         '{type: "user_message", prompt: $prompt, timestamp: $ts}')
 
     jwz post "$USER_TOPIC" -m "$MSG" 2>/dev/null || true
+
+    # Emit prompt_received trace event
+    jwz topic new "$TRACE_TOPIC" 2>/dev/null || true
+    TRACE_EVENT=$(jq -n \
+        --arg event_type "prompt_received" \
+        --arg prompt "$USER_PROMPT" \
+        --arg ts "$TIMESTAMP" \
+        '{event_type: $event_type, prompt: $prompt, timestamp: $ts}')
+    jwz post "$TRACE_TOPIC" -m "$TRACE_EVENT" 2>/dev/null || true
 fi
 
 # Always approve - this hook just captures, doesn't gate

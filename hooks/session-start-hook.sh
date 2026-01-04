@@ -5,10 +5,13 @@
 # Output: JSON with context field for injection
 # Exit 0 always
 
-set -euo pipefail
+# Ensure we always output valid JSON, even on error
+trap 'echo "{\"hookSpecificOutput\": {\"hookEventName\": \"SessionStart\", \"additionalContext\": \"idle: hook error\"}}"; exit 0' ERR
+
+set -uo pipefail
 
 # Read hook input from stdin
-INPUT=$(cat)
+INPUT=$(cat || echo '{}')
 
 CWD=$(echo "$INPUT" | jq -r '.cwd // "."')
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "default"')
@@ -64,6 +67,21 @@ $([ -n "$SKILLS" ] && echo "$SKILLS" || echo "None detected")
 
 Session ID: \`$SESSION_ID\`
 "
+
+# Emit session_start trace event
+if [[ "$JWZ_AVAILABLE" = "true" ]]; then
+    TRACE_TOPIC="trace:$SESSION_ID"
+    TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    jwz topic new "$TRACE_TOPIC" 2>/dev/null || true
+
+    TRACE_EVENT=$(jq -n \
+        --arg event_type "session_start" \
+        --arg ts "$TIMESTAMP" \
+        '{event_type: $event_type, timestamp: $ts}')
+
+    jwz post "$TRACE_TOPIC" -m "$TRACE_EVENT" 2>/dev/null || true
+fi
 
 # Output JSON with context (hookSpecificOutput.additionalContext for SessionStart)
 jq -n \

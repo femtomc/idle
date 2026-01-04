@@ -1,0 +1,15 @@
+.{
+    .name = .idle,
+    .version = "0.0.0",
+    .fingerprint = 0xdc24b5151c985571,
+    .minimum_zig_version = "0.15.0",
+    .dependencies = .{
+        .zawinski = .{ .path = "../zawinski" },
+        .tissue = .{ .path = "../tissue" },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

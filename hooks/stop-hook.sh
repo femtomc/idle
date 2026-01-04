@@ -5,10 +5,13 @@
 # Output: JSON with decision (block/approve) and reason
 # Exit 0 for both - decision field controls behavior
 
-set -euo pipefail
+# Critical: Always output valid JSON, even on error. Fail open on error.
+trap 'jq -n "{decision: \"approve\", reason: \"idle: hook error - failing open\"}"; exit 0' ERR
+
+set -uo pipefail
 
 # Read hook input from stdin
-INPUT=$(cat)
+INPUT=$(cat || echo '{}')
 
 # Extract session info
 CWD=$(echo "$INPUT" | jq -r '.cwd // "."')
