@@ -54,7 +54,12 @@ jobs:
 
           echo "Using zawinski $ZAWINSKI_VERSION, tissue $TISSUE_VERSION"
 
-          # Fetch and save dependencies (updates build.zig.zon with correct hashes)
+          # Remove path dependencies before fetching URL dependencies
+          # (zig fetch --save with existing path deps puts URL in .path field incorrectly)
+          sed -i 's/\.zawinski = \.{ \.path = "[^"]*" },//' build.zig.zon
+          sed -i 's/\.tissue = \.{ \.path = "[^"]*" },//' build.zig.zon
+
+          # Fetch and save dependencies (creates .url and .hash fields)
           zig fetch --save=zawinski "https://github.com/evil-mind-evil-sword/zawinski/archive/refs/tags/${ZAWINSKI_VERSION}.tar.gz"
           zig fetch --save=tissue "https://github.com/evil-mind-evil-sword/tissue/archive/refs/tags/${TISSUE_VERSION}.tar.gz"
 
