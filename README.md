@@ -21,14 +21,6 @@ This installs:
 
 Those other two binaries (`jwz` and `tissue`) are small Zig programs which allow Claude Code to store issues, messages, retain state (all in JSONL + SQLite, like `beads`) -- and are used by `idle` to track the state required to enforce the reviewer pattern (as well as giving Claude Code a place to store issues, research notes, etc). The plugin assumes these binaries are available and contains explicit instructions for how the agent should use them. The goal here is to make it easy to install these and get started (meaning: the goal is you shouldn't have to think about them!)
 
-## Motivation
-
-LLMs struggle to reliably evaluate their own outputs ([Huang et al., 2023](https://arxiv.org/abs/2310.01798)). A model asked to verify its work tends to confirm rather than critique. This creates a gap in agentic coding workflows—agents can exit believing they've completed a task when issues remain.
-
-Research on multi-agent debate suggests a path forward: models produce more accurate outputs when they critique each other ([Du et al., 2023](https://arxiv.org/abs/2305.14325); [Liang et al., 2023](https://arxiv.org/abs/2305.19118)).
-
-idle applies this idea: rather than prompting agents to review themselves, it blocks exit until an independent reviewer (alice, a subagent) explicitly approves.
-
 ## Usage
 
 ```
@@ -36,6 +28,14 @@ idle applies this idea: rather than prompting agents to review themselves, it bl
 ```
 
 Review is opt-in per-prompt. After alice approves, the gate resets automatically.
+
+## Motivation
+
+LLMs struggle to reliably evaluate their own outputs ([Huang et al., 2023](https://arxiv.org/abs/2310.01798)). A model asked to verify its work tends to confirm rather than critique. This creates a gap in agentic coding workflows—agents can exit believing they've completed a task when issues remain.
+
+Research on multi-agent debate suggests a path forward: models produce more accurate outputs when they critique each other ([Du et al., 2023](https://arxiv.org/abs/2305.14325); [Liang et al., 2023](https://arxiv.org/abs/2305.19118)).
+
+idle applies this idea: rather than prompting agents to review themselves, it blocks exit until an independent reviewer (alice, a subagent) explicitly approves.
 
 ## How It Works
 
