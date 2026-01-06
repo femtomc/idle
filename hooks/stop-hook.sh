@@ -4,6 +4,13 @@
 #
 # Output: JSON with decision (block/approve) and reason
 # Exit 0 for both - decision field controls behavior
+#
+# FAIL-OPEN DESIGN:
+# Infrastructure errors (jwz unavailable, state corruption, parse errors) fail OPEN
+# with warnings posted to idle:warnings:{session} topic. Users can check warnings
+# via `idle warnings` CLI command. This prioritizes availability over strict gating.
+#
+# Only alice review decisions block - NOT infrastructure issues.
 
 # Critical: Always output valid JSON, even on error. Fail open on error.
 trap 'jq -n "{decision: \"approve\", reason: \"idle: hook error - failing open\"}"; exit 0' ERR
@@ -21,6 +28,34 @@ cd "$CWD"
 
 ALICE_TOPIC="alice:status:$SESSION_ID"
 REVIEW_STATE_TOPIC="review:state:$SESSION_ID"
+WARNINGS_TOPIC="idle:warnings:$SESSION_ID"
+
+# --- Helper: emit warning and fail open ---
+# Logs to stderr, posts to jwz warnings topic, returns approve with additionalContext
+emit_warning_and_approve() {
+    local msg="$1"
+    local reason="${2:-$msg}"
+
+    # Layer 1: stderr (shown in verbose mode)
+    printf "idle: WARNING: %s\n" "$msg" >&2
+
+    # Layer 2: jwz persistence (best effort - may fail if jwz is the problem)
+    local ts
+    ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    jwz topic new "$WARNINGS_TOPIC" 2>/dev/null || true
+    jwz post "$WARNINGS_TOPIC" -m "$(jq -n --arg w "$msg" --arg ts "$ts" '{warning: $w, timestamp: $ts}')" 2>/dev/null || true
+
+    # Layer 3: approve with additionalContext for inline display
+    jq -n --arg reason "$reason" --arg msg "⚠️ idle: $msg" '{
+        decision: "approve",
+        reason: $reason,
+        hookSpecificOutput: {
+            hookEventName: "Stop",
+            additionalContext: $msg
+        }
+    }'
+    exit 0
+}
 
 # --- Check review state (opt-in via #idle) ---
 
@@ -48,11 +83,9 @@ if [[ $JWZ_EXIT -ne 0 ]]; then
         jq -n '{decision: "approve", reason: "Review not enabled"}'
         exit 0
     else
-        # Unknown jwz error - fail closed (user opted in, something is wrong)
+        # Unknown jwz error - fail OPEN with warning (user can check `idle warnings`)
         ERR_MSG=$(cat "$JWZ_TMPFILE")
-        printf "idle: ERROR: jwz error while checking review state: %s\n" "$ERR_MSG" >&2
-        jq -n --arg err "$ERR_MSG" '{decision: "block", reason: ("jwz error - review state unknown, blocking to be safe: " + $err)}'
-        exit 0
+        emit_warning_and_approve "jwz error while checking review state: $ERR_MSG" "jwz error - failing open with warning"
     fi
 fi
 
@@ -63,18 +96,14 @@ fi
 TOPIC_LENGTH=$(jq 'length' "$JWZ_TMPFILE" 2>/dev/null || echo "0")
 if [[ "$TOPIC_LENGTH" == "0" ]]; then
     # Topic exists but is empty - #idle was attempted but failed
-    # Fail CLOSED (block) rather than open
-    printf "idle: ERROR: review:state topic exists but is empty - #idle may have failed\n" >&2
-    jq -n '{decision: "block", reason: "Review state corrupted: topic exists but is empty. This suggests #idle failed to post state. Please re-run #idle."}'
-    exit 0
+    # Fail OPEN with warning (user can check `idle warnings`)
+    emit_warning_and_approve "review:state topic exists but is empty - #idle may have failed" "Review state corrupted - failing open with warning"
 fi
 
 REVIEW_ENABLED_RAW=$(jq -r '.[0].body | fromjson | .enabled' "$JWZ_TMPFILE" 2>/dev/null || echo "")
 if [[ -z "$REVIEW_ENABLED_RAW" || "$REVIEW_ENABLED_RAW" == "null" ]]; then
-    # Can't parse enabled field - fail closed (state exists but corrupted)
-    printf "idle: ERROR: Failed to parse review state - blocking to be safe\n" >&2
-    jq -n '{decision: "block", reason: "Failed to parse review state - state may be corrupted."}'
-    exit 0
+    # Can't parse enabled field - fail OPEN with warning (user can check `idle warnings`)
+    emit_warning_and_approve "Failed to parse review state - state may be corrupted" "Parse error - failing open with warning"
 fi
 
 if [[ "$REVIEW_ENABLED_RAW" != "true" ]]; then
