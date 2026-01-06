@@ -31,6 +31,8 @@ Those other two binaries (`jwz` and `tissue`) are small Zig programs which allow
 #idle <your prompt>
 ```
 
+`idle` uses the UserInput hook to look at your prompt, parse it, and see if you've invoked `#idle`. It then uses `jwz` to set a session message, enabling the Stop hook.
+
 Review is opt-in per-prompt. After alice approves, the gate resets automatically.
 
 ## Motivation
