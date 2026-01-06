@@ -1,6 +1,6 @@
 # idle
 
-Quality gate plugin for Claude Code. Blocks Claude from stopping (via Claude Code's Stop hook) until work passes review by an independent agent. 
+Quality gate plugin for Claude Code. Blocks Claude from stopping (via Claude Code's Stop hook) until work passes review by an independent agent. The independent agent uses _consensus review_ when possible (asking Codex and/or Gemini for second opinions).
 
 **Be aware:**
 - It's kind of like a "super ultra extra thinking" mode for Claude Code, with some interesting and useful properties.
