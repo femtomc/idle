@@ -4,6 +4,7 @@ Quality gate plugin for Claude Code. Blocks Claude from stopping (via Claude Cod
 
 **Be aware:**
 - It's kind of like a "super ultra extra thinking" mode for Claude Code, with some interesting and useful properties.
+    - If you're familiar, it makes Claude Code _feel_ like Codex with high/xhigh reasoning, but gives you the coding capabilities and speed of Claude Code.  
 - Can intentionally be used to run Claude Code on a task for many hours without intervention.
 - If you're tight on tokens, I would not recommend unless you're rolling a variant of the Max plan. The reviews are extensive and exhaustive, and the token usage is consequentially large.
     - I'm thinking about how to optimize this via prompting, but that work hasn't been done yet.
