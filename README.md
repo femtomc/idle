@@ -1,6 +1,8 @@
 # idle
 
-Quality gate plugin for Claude Code. Blocks exit until work passes review by an independent agent.
+Quality gate plugin for Claude Code. Blocks Claude from stopping (via Claude's Stop hook) until work passes review by an independent agent. 
+
+Be aware: can accidentally (or intentionally) be used to run Claude for many hours without intervention.
 
 ## Install
 
