@@ -2,7 +2,10 @@
 
 Quality gate plugin for Claude Code. Blocks Claude from stopping (via Claude Code's Stop hook) until work passes review by an independent agent. 
 
-Be aware: can accidentally (or intentionally) be used to run Claude Code for many hours without intervention.
+Be aware: 
+- It's kind of like a "super ultra extra thinking" mode for Claude Code, with some interesting and useful properties.
+- Can accidentally (or intentionally) be used to run Claude Code for many hours without intervention.
+- I would not recommend unless you're rolling a variant of the Max plan. The reviews are extensive and exhaustive, and the token usage is consequentially large.
 
 ## Install
 
