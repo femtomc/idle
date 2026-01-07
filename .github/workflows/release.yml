@@ -64,7 +64,7 @@ jobs:
           zig fetch --save=tissue "https://github.com/evil-mind-evil-sword/tissue/archive/refs/tags/${TISSUE_VERSION}.tar.gz"
 
       - name: Build
-        run: zig build -Doptimize=ReleaseFast -Dtarget=${{ matrix.target }}
+        run: zig build -Doptimize=ReleaseSmall -Dtarget=${{ matrix.target }}
 
       - name: Package
         run: |
@@ -241,6 +241,11 @@ jobs:
       - name: Deploy to site
         run: |
           VERSION="${{ steps.version.outputs.version }}"
+
+          # Prune old versions (keep only latest)
+          rm -rf site/releases/idle/v*
+
+          # Deploy new version
           mkdir -p "site/releases/idle/${VERSION}"
           cp release/* "site/releases/idle/${VERSION}/"
           cp release/install.sh "site/releases/idle/install.sh"
