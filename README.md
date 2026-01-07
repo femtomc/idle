@@ -17,7 +17,7 @@ For best results, I would mix in Codex and/or Gemini -- just install the CLIs an
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/evil-mind-evil-sword/idle/main/install.sh | sh
+curl -fsSL https://evil-mind-evil-sword.github.io/releases/idle/install.sh | sh
 ```
 
 This installs:

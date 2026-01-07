@@ -134,58 +134,100 @@ jobs:
 
           # idle installer
           # Usage: curl -fsSL https://evil-mind-evil-sword.github.io/releases/idle/install.sh | sh
+          #
+          # This installs:
+          # - jq (if not present)
+          # - jwz (agent messaging)
+          # - tissue (issue tracking)
+          # - idle plugin (registered with Claude Code)
 
           RELEASES_BASE="https://evil-mind-evil-sword.github.io/releases"
-          INSTALL_DIR="${IDLE_INSTALL_DIR:-$HOME/.local/bin}"
 
-          # Detect OS and architecture
-          OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-          ARCH=$(uname -m)
+          echo "Installing idle plugin..."
+          echo ""
 
-          case "$OS" in
-            linux) OS="linux" ;;
-            darwin) OS="macos" ;;
-            *) echo "Unsupported OS: $OS"; exit 1 ;;
-          esac
+          # --- Install dependencies ---
 
-          case "$ARCH" in
-            x86_64|amd64) ARCH="x86_64" ;;
-            aarch64|arm64) ARCH="aarch64" ;;
-            *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
-          esac
+          echo "Checking dependencies..."
 
-          BINARY="idle-${OS}-${ARCH}"
+          # Check for jq
+          if ! command -v jq >/dev/null 2>&1; then
+              echo "Installing jq..."
+              if command -v brew >/dev/null 2>&1; then
+                  brew install jq
+              elif command -v apt-get >/dev/null 2>&1; then
+                  sudo apt-get update && sudo apt-get install -y jq
+              else
+                  echo "Error: jq not found. Please install jq manually."
+                  exit 1
+              fi
+          fi
 
-          # Get version from manifest
-          if [ -n "$IDLE_VERSION" ]; then
-            VERSION="$IDLE_VERSION"
+          # Install jwz (zawinski)
+          if ! command -v jwz >/dev/null 2>&1; then
+              echo "Installing jwz (zawinski)..."
+              curl -fsSL "${RELEASES_BASE}/zawinski/install.sh" | sh
+          fi
+
+          # Install tissue
+          if ! command -v tissue >/dev/null 2>&1; then
+              echo "Installing tissue..."
+              curl -fsSL "${RELEASES_BASE}/tissue/install.sh" | sh
+          fi
+
+          echo "Dependencies installed."
+          echo ""
+
+          # --- Install plugin via Claude Code ---
+
+          if command -v claude >/dev/null 2>&1; then
+              echo "Installing idle plugin via Claude Code..."
+
+              # Add marketplace (idempotent)
+              claude plugin marketplace add evil-mind-evil-sword/marketplace 2>/dev/null || true
+
+              # Update emes marketplace to get latest versions
+              echo "Updating marketplace..."
+              claude plugin marketplace update emes 2>/dev/null || true
+
+              # Check if already installed
+              if claude plugin list 2>/dev/null | grep -q "idle@emes"; then
+                  echo "Updating idle plugin..."
+                  if claude plugin update idle@emes 2>/dev/null; then
+                      echo "idle plugin updated!"
+                  else
+                      # Fallback: reinstall
+                      claude plugin uninstall idle@emes 2>/dev/null || true
+                      if claude plugin install idle@emes 2>/dev/null; then
+                          echo "idle plugin reinstalled!"
+                      else
+                          echo "Plugin update failed. Try manually: /plugin update idle@emes"
+                      fi
+                  fi
+              else
+                  echo "Installing idle plugin..."
+                  if claude plugin install idle@emes 2>/dev/null; then
+                      echo "idle plugin installed!"
+                  else
+                      echo "Plugin install failed. Try manually in Claude Code:"
+                      echo "  /plugin marketplace add evil-mind-evil-sword/marketplace"
+                      echo "  /plugin install idle@emes"
+                  fi
+              fi
           else
-            VERSION=$(curl -fsSL "${RELEASES_BASE}/manifest.json" | grep -o '"idle"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/')
-          fi
-
-          URL="${RELEASES_BASE}/idle/${VERSION}/${BINARY}"
-
-          echo "Installing idle CLI ${VERSION} for ${OS}/${ARCH}..."
-
-          mkdir -p "$INSTALL_DIR"
-          curl -fsSL "$URL" -o "$INSTALL_DIR/idle"
-          chmod +x "$INSTALL_DIR/idle"
-
-          echo "idle CLI installed to $INSTALL_DIR/idle"
-
-          if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
-            echo ""
-            echo "Add to your PATH:"
-            echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
+              echo "claude CLI not found. Install the plugin manually in Claude Code:"
+              echo "  /plugin marketplace add evil-mind-evil-sword/marketplace"
+              echo "  /plugin install idle@emes"
           fi
 
           echo ""
-          echo "Note: The idle Claude Code plugin is installed separately via:"
-          echo "  claude /plugin install idle@emes"
+          echo "Installation complete!"
           echo ""
-          echo "Get started with the CLI:"
-          echo "  idle trace <session_id>     # View session trace"
-          echo "  idle trace <session_id> -v  # Verbose: show tool inputs/outputs"
+          echo "The idle plugin is now active. Use #idle to enable review."
+          echo ""
+          echo "Dependencies installed:"
+          echo "  jwz     - Agent messaging"
+          echo "  tissue  - Issue tracking"
           EOF
           chmod +x release/install.sh
 
