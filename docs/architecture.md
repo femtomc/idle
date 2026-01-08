@@ -192,7 +192,7 @@ jwz read trace:abc123 --json
 
 | Hook | Event Type | Fields |
 |------|------------|--------|
-| SessionStart | `session_start` | timestamp |
+| SessionStart | `session_start` | timestamp, source |
 | UserPromptSubmit | `prompt_received` | timestamp, prompt |
 | PostToolUse | `tool_completed` | timestamp, tool_name, tool_input, tool_response, success |
 | SessionEnd | `session_end` | timestamp |

@@ -352,6 +352,42 @@ else
 fi
 
 # ============================================================================
+# TEST 11: Compaction does NOT clean up review state
+# ============================================================================
+echo ""
+echo "--- Test 11: Compaction preserves review state ---"
+
+if command -v jwz &>/dev/null; then
+    JWZ_COMPACT_DIR="$TEMP_DIR/jwz-compact"
+    mkdir -p "$JWZ_COMPACT_DIR"
+    cd "$JWZ_COMPACT_DIR"
+    jwz init 2>/dev/null || true
+
+    SESSION="test-session-compact"
+    START_HOOK="$SCRIPT_DIR/../hooks/session-start-hook.sh"
+
+    # Simulate active review state (enabled: true during conversation)
+    jwz topic new "review:state:$SESSION" 2>/dev/null || true
+    jwz post "review:state:$SESSION" -m '{"enabled": true, "timestamp": "2024-01-01T00:00:00Z"}' >/dev/null 2>&1
+
+    # Run session start hook with source:"compact" (simulates compaction)
+    echo "{\"session_id\": \"$SESSION\", \"cwd\": \"$JWZ_COMPACT_DIR\", \"source\": \"compact\"}" | bash "$START_HOOK" >/dev/null 2>&1
+
+    # Verify review state was NOT cleaned up (should still be enabled: true)
+    ENABLED=$(jwz read "review:state:$SESSION" --json 2>/dev/null | jq -r '.[0].body | fromjson | .enabled | tostring')
+
+    if [[ "$ENABLED" == "true" ]]; then
+        echo "✓ Compaction preserved review state (enabled=$ENABLED)"
+        ((pass++)) || true
+    else
+        echo "✗ Compaction incorrectly cleaned up review state (enabled=$ENABLED)"
+        ((fail++)) || true
+    fi
+else
+    echo "⊘ Skipping jwz tests (jwz not available)"
+fi
+
+# ============================================================================
 # SUMMARY
 # ============================================================================
 echo ""
