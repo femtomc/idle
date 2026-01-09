@@ -178,10 +178,18 @@ pub const AliceStatus = struct {
 /// Get the default alice store directory (~/.claude/alice/.jwz)
 /// Returns a slice that is either from environment or from the provided buffer
 pub fn getAliceJwzStore(buf: []u8) []const u8 {
+    const home = std.posix.getenv("HOME") orelse "/tmp";
     if (std.posix.getenv("JWZ_STORE")) |store| {
+        // Expand tilde if present
+        if (store.len > 0 and store[0] == '~') {
+            if (store.len == 1) {
+                return std.fmt.bufPrint(buf, "{s}", .{home}) catch "/tmp/.jwz";
+            } else if (store[1] == '/') {
+                return std.fmt.bufPrint(buf, "{s}{s}", .{ home, store[1..] }) catch "/tmp/.jwz";
+            }
+        }
         return store;
     }
-    const home = std.posix.getenv("HOME") orelse "/tmp";
     return std.fmt.bufPrint(buf, "{s}/.claude/alice/.jwz", .{home}) catch "/tmp/.jwz";
 }
 

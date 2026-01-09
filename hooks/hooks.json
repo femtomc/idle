@@ -6,7 +6,11 @@
           {
             "type": "command",
             "command": "alice hook session-start",
-            "timeout": 5
+            "timeout": 5,
+            "env": {
+              "JWZ_STORE": "~/.claude/alice/.jwz",
+              "TISSUE_STORE": "~/.claude/alice/.tissue"
+            }
           }
         ]
       }
@@ -17,7 +21,11 @@
           {
             "type": "command",
             "command": "alice hook user-prompt",
-            "timeout": 5
+            "timeout": 5,
+            "env": {
+              "JWZ_STORE": "~/.claude/alice/.jwz",
+              "TISSUE_STORE": "~/.claude/alice/.tissue"
+            }
           }
         ]
       }
@@ -28,7 +36,11 @@
           {
             "type": "command",
             "command": "alice hook stop",
-            "timeout": 30
+            "timeout": 30,
+            "env": {
+              "JWZ_STORE": "~/.claude/alice/.jwz",
+              "TISSUE_STORE": "~/.claude/alice/.tissue"
+            }
           }
         ]
       }
@@ -39,7 +51,11 @@
           {
             "type": "command",
             "command": "alice hook post-tool-use",
-            "timeout": 5
+            "timeout": 5,
+            "env": {
+              "JWZ_STORE": "~/.claude/alice/.jwz",
+              "TISSUE_STORE": "~/.claude/alice/.tissue"
+            }
           }
         ]
       }
@@ -50,7 +66,11 @@
           {
             "type": "command",
             "command": "alice hook session-end",
-            "timeout": 5
+            "timeout": 5,
+            "env": {
+              "JWZ_STORE": "~/.claude/alice/.jwz",
+              "TISSUE_STORE": "~/.claude/alice/.tissue"
+            }
           }
         ]
       }
