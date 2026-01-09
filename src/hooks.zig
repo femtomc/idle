@@ -12,6 +12,7 @@
 
 const std = @import("std");
 const jwz = @import("jwz");
+const tissue = @import("tissue");
 
 // ============================================================================
 // Common Types
@@ -189,6 +190,28 @@ fn ensureParentDir(path: []const u8) !void {
     std.fs.makeDirAbsolute(dir_path) catch |err| {
         if (err != error.PathAlreadyExists) return err;
     };
+}
+
+/// Check if a local store directory exists in cwd or ancestors
+fn hasLocalStore(store_name: []const u8) bool {
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const cwd_path = std.fs.cwd().realpath(".", &path_buf) catch return false;
+    var current: []const u8 = cwd_path;
+
+    while (true) {
+        // Check if store_name exists in current directory
+        var check_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const candidate = std.fmt.bufPrint(&check_buf, "{s}/{s}", .{ current, store_name }) catch return false;
+        if (std.fs.accessAbsolute(candidate, .{})) |_| {
+            return true;
+        } else |_| {}
+
+        // Move to parent
+        const parent = std.fs.path.dirname(current) orelse break;
+        if (std.mem.eql(u8, parent, current)) break;
+        current = parent;
+    }
+    return false;
 }
 
 /// Open the jwz store, creating it if needed
@@ -680,34 +703,55 @@ pub fn sessionStart(allocator: std.mem.Allocator, input: HookInput) HookOutput {
     defer allocator.free(store_path);
     const source = input.source orelse "startup";
 
-    // Get alice directory paths
+    // Get alice directory paths for fallback
     const home = std.posix.getenv("HOME") orelse "/tmp";
     var alice_dir_buf: [256]u8 = undefined;
     const alice_dir = std.fmt.bufPrint(&alice_dir_buf, "{s}/.claude/alice", .{home}) catch "/tmp/.claude/alice";
-    var tissue_store_buf: [256]u8 = undefined;
-    const alice_tissue_store = std.fmt.bufPrint(&tissue_store_buf, "{s}/.tissue", .{alice_dir}) catch "/tmp/.tissue";
 
-    // Ensure alice directory exists (recursive creation for ~/.claude/alice)
-    std.fs.cwd().makePath(alice_dir) catch {
-        // Continue anyway - best effort
-    };
+    // Discover tissue store (uses tissue's discovery: TISSUE_STORE env, then local walk)
+    // If no store found, create the global alice store as fallback
+    var tissue_path: []const u8 = undefined;
+    var tissue_needs_env_var = false;
+    var tissue_path_allocated = false;
 
-    // Auto-initialize tissue store if not present
-    if (std.fs.accessAbsolute(alice_tissue_store, .{})) |_| {
-        // Tissue store exists
-    } else |_| {
-        // Try to initialize tissue store
-        if (std.process.Child.run(.{
-            .allocator = allocator,
-            .argv = &.{ "tissue", "--store", alice_tissue_store, "init" },
-            .max_output_bytes = 256,
-        })) |result| {
-            allocator.free(result.stdout);
-            allocator.free(result.stderr);
-        } else |_| {}
+    if (tissue.store.discoverStoreDir(allocator)) |discovered_path| {
+        tissue_path = discovered_path;
+        tissue_path_allocated = true;
+        // Store was discovered - CLI will find it, no need to set env var
+    } else |err| switch (err) {
+        error.StoreNotFound => {
+            // No store found - create global alice store
+            var tissue_store_buf: [256]u8 = undefined;
+            tissue_path = std.fmt.bufPrint(&tissue_store_buf, "{s}/.tissue", .{alice_dir}) catch "/tmp/.tissue";
+            tissue_needs_env_var = true;
+
+            // Ensure alice directory exists
+            std.fs.cwd().makePath(alice_dir) catch {};
+
+            // Auto-initialize tissue store if not present
+            if (std.fs.accessAbsolute(tissue_path, .{})) |_| {
+                // Store exists
+            } else |_| {
+                if (std.process.Child.run(.{
+                    .allocator = allocator,
+                    .argv = &.{ "tissue", "--store", tissue_path, "init" },
+                    .max_output_bytes = 256,
+                })) |result| {
+                    allocator.free(result.stdout);
+                    allocator.free(result.stderr);
+                } else |_| {}
+            }
+        },
+        else => {
+            // Other error - use fallback path but don't set env var
+            var tissue_store_buf: [256]u8 = undefined;
+            tissue_path = std.fmt.bufPrint(&tissue_store_buf, "{s}/.tissue", .{alice_dir}) catch "/tmp/.tissue";
+        },
     }
+    defer if (tissue_path_allocated) allocator.free(tissue_path);
 
     // Persist env vars to CLAUDE_ENV_FILE for CLI command discovery
+    // Only write env vars when stores were created as fallback (not discovered locally)
     if (std.posix.getenv("CLAUDE_ENV_FILE")) |env_file| {
         // Read existing file content (if any)
         var file_content: [4096]u8 = undefined;
@@ -718,14 +762,14 @@ pub fn sessionStart(allocator: std.mem.Allocator, input: HookInput) HookOutput {
         } else |_| {}
         const existing_content = file_content[0..content_len];
 
-        // Check if we should write TISSUE_STORE
-        const current_tissue = std.posix.getenv("TISSUE_STORE");
-        const should_write_tissue = (current_tissue == null or std.mem.eql(u8, current_tissue.?, alice_tissue_store)) and
+        // Only write TISSUE_STORE if we created the fallback store
+        const should_write_tissue = tissue_needs_env_var and
             std.mem.indexOf(u8, existing_content, "TISSUE_STORE=") == null;
 
-        // Check if we should write JWZ_STORE
-        const current_jwz = std.posix.getenv("JWZ_STORE");
-        const should_write_jwz = (current_jwz == null or std.mem.eql(u8, current_jwz.?, store_path)) and
+        // For jwz: check if there's a local store (discovery checks local first)
+        // If no local store, write env var so CLI can find global store
+        const has_local_jwz = hasLocalStore(".jwz");
+        const should_write_jwz = !has_local_jwz and
             std.mem.indexOf(u8, existing_content, "JWZ_STORE=") == null;
 
         // Append to file if needed
@@ -737,7 +781,7 @@ pub fn sessionStart(allocator: std.mem.Allocator, input: HookInput) HookOutput {
                 var writer = wfile.writer(&write_buf);
                 const w = &writer.interface;
                 if (should_write_tissue) {
-                    w.print("export TISSUE_STORE=\"{s}\"\n", .{alice_tissue_store}) catch {};
+                    w.print("export TISSUE_STORE=\"{s}\"\n", .{tissue_path}) catch {};
                 }
                 if (should_write_jwz) {
                     w.print("export JWZ_STORE=\"{s}\"\n", .{store_path}) catch {};
@@ -750,7 +794,7 @@ pub fn sessionStart(allocator: std.mem.Allocator, input: HookInput) HookOutput {
                     var writer = wfile.writer(&write_buf);
                     const w = &writer.interface;
                     if (should_write_tissue) {
-                        w.print("export TISSUE_STORE=\"{s}\"\n", .{alice_tissue_store}) catch {};
+                        w.print("export TISSUE_STORE=\"{s}\"\n", .{tissue_path}) catch {};
                     }
                     if (should_write_jwz) {
                         w.print("export JWZ_STORE=\"{s}\"\n", .{store_path}) catch {};
