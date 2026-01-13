@@ -340,6 +340,44 @@ pub fn getTimestamp(buf: []u8) []const u8 {
     }) catch "1970-01-01T00:00:00Z";
 }
 
+/// Parse ISO 8601 timestamp to Unix epoch seconds
+/// Expected format: "YYYY-MM-DDTHH:MM:SSZ"
+fn parseIso8601ToEpoch(ts: []const u8) ?i64 {
+    // Minimum length: "YYYY-MM-DDTHH:MM:SSZ" = 20 chars
+    if (ts.len < 20) return null;
+
+    const year = std.fmt.parseInt(i32, ts[0..4], 10) catch return null;
+    const month = std.fmt.parseInt(u8, ts[5..7], 10) catch return null;
+    const day = std.fmt.parseInt(u8, ts[8..10], 10) catch return null;
+    const hour = std.fmt.parseInt(u8, ts[11..13], 10) catch return null;
+    const minute = std.fmt.parseInt(u8, ts[14..16], 10) catch return null;
+    const second = std.fmt.parseInt(u8, ts[17..19], 10) catch return null;
+
+    // Basic validation
+    if (month < 1 or month > 12) return null;
+    if (day < 1 or day > 31) return null;
+    if (hour > 23 or minute > 59 or second > 59) return null;
+
+    // Calculate days since Unix epoch (1970-01-01) using direct calculation
+    // This is simpler than using the std.time.epoch utilities which are designed for the reverse
+    const days_since_epoch = daysFromYmd(year, month, day);
+    const day_secs: i64 = @as(i64, hour) * 3600 + @as(i64, minute) * 60 + second;
+    return days_since_epoch * 86400 + day_secs;
+}
+
+/// Calculate days since Unix epoch (1970-01-01) from year/month/day
+/// Uses the algorithm from Howard Hinnant's date library
+fn daysFromYmd(year: i32, month: u8, day: u8) i64 {
+    // Adjust for months (March = 0 in this algorithm)
+    const y: i64 = if (month <= 2) year - 1 else year;
+    const m: i64 = if (month <= 2) month + 12 else month;
+    const era: i64 = @divFloor(if (y >= 0) y else y - 399, 400);
+    const yoe: i64 = y - era * 400; // year of era [0, 399]
+    const doy: i64 = @divFloor((153 * (m - 3) + 2), 5) + day - 1; // day of year [0, 365]
+    const doe: i64 = yoe * 365 + @divFloor(yoe, 4) - @divFloor(yoe, 100) + doy; // day of era [0, 146096]
+    return era * 146097 + doe - 719468; // Unix epoch offset
+}
+
 // ============================================================================
 // Hook Implementations
 // ============================================================================
@@ -968,6 +1006,23 @@ pub fn stop(allocator: std.mem.Allocator, input: HookInput) HookOutput {
     };
     defer store.deinit();
 
+    // Emit trace event to record that stop hook was called
+    {
+        var trace_topic_buf: [128]u8 = undefined;
+        const trace_topic = std.fmt.bufPrint(&trace_topic_buf, "trace:{s}", .{input.session_id}) catch "";
+        if (trace_topic.len > 0) {
+            var ts_buf: [32]u8 = undefined;
+            const timestamp = getTimestamp(&ts_buf);
+            var trace_buf: [256]u8 = undefined;
+            const trace_msg = std.fmt.bufPrint(&trace_buf,
+                \\{{"event_type":"stop_hook_called","timestamp":"{s}"}}
+            , .{timestamp}) catch "";
+            if (trace_msg.len > 0) {
+                postToTopic(allocator, &store, trace_topic, trace_msg) catch {};
+            }
+        }
+    }
+
     // Topic names
     var review_topic_buf: [128]u8 = undefined;
     const review_state_topic = std.fmt.bufPrint(&review_topic_buf, "review:state:{s}", .{input.session_id}) catch {
@@ -1188,14 +1243,14 @@ pub fn subagentStop(allocator: std.mem.Allocator, input: HookInput) HookOutput {
     };
     defer store.deinit();
 
-    // Build topic name
-    var alice_topic_buf: [128]u8 = undefined;
-    const alice_topic = std.fmt.bufPrint(&alice_topic_buf, "alice:status:{s}", .{session_id}) catch {
+    // Build topic name for the ID used in the prompt
+    var used_topic_buf: [128]u8 = undefined;
+    const used_topic = std.fmt.bufPrint(&used_topic_buf, "alice:status:{s}", .{session_id}) catch {
         return HookOutput.approve();
     };
 
-    // Get the latest message
-    const alice_msg = getLatestMessage(allocator, &store, alice_topic) orelse {
+    // Get the latest message from the topic alice posted to
+    const alice_msg = getLatestMessage(allocator, &store, used_topic) orelse {
         // No message at all - alice didn't post
         return buildAliceDidNotPostError(allocator, session_id);
     };
@@ -1233,6 +1288,50 @@ pub fn subagentStop(allocator: std.mem.Allocator, input: HookInput) HookOutput {
             session_id,
             "alice decision missing 'second_opinions' - external validation may have been skipped",
         );
+    }
+
+    // Topic aliasing: if agent used a custom topic name instead of the canonical session UUID,
+    // copy the decision to the canonical topic so the stop hook will find it.
+    // This implements Postel's Law - be liberal in what we accept.
+    //
+    // SECURITY: Validate timestamp to prevent replay attacks. Old decisions from previous
+    // sessions on custom topics must not auto-approve the current session.
+    const canonical_id = input.session_id;
+    if (!std.mem.eql(u8, session_id, canonical_id)) {
+        // Validate the decision is recent (within 30 minutes) to prevent replay attacks
+        const is_recent = blk: {
+            const decision_ts = alice_status.value.timestamp orelse break :blk false;
+            const decision_epoch = parseIso8601ToEpoch(decision_ts) orelse break :blk false;
+            const now_epoch: i64 = std.time.timestamp();
+            const age_seconds = now_epoch - decision_epoch;
+            // Accept decisions from the last 30 minutes
+            break :blk age_seconds >= 0 and age_seconds < 30 * 60;
+        };
+
+        if (!is_recent) {
+            // Stale decision from a previous session - do NOT copy, warn instead
+            return emitWarningAndApprove(
+                allocator,
+                &store,
+                canonical_id,
+                "alice decision found on custom topic but timestamp is stale or missing - not copying to canonical topic",
+            );
+        }
+
+        var canonical_topic_buf: [128]u8 = undefined;
+        const canonical_topic = std.fmt.bufPrint(&canonical_topic_buf, "alice:status:{s}", .{canonical_id}) catch "";
+        if (canonical_topic.len > 0) {
+            // Copy the recent decision to the canonical topic
+            postToTopic(allocator, &store, canonical_topic, alice_msg.body) catch {
+                // Best effort - warn but don't block
+                return emitWarningAndApprove(
+                    allocator,
+                    &store,
+                    canonical_id,
+                    "alice decision found but failed to copy to canonical topic - stop hook may block",
+                );
+            };
+        }
     }
 
     // Valid decision posted with second opinions - approve
@@ -1322,6 +1421,9 @@ fn buildBlockReason(
         \\
         \\---
         \\SESSION_ID={s}
+        \\
+        \\IMPORTANT: SESSION_ID must be the EXACT UUID shown above (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).
+        \\Do NOT use a custom name, issue ID, or descriptive label - the stop hook will not find your approval.
         \\
         \\## Work performed
         \\
@@ -1544,4 +1646,23 @@ test "findUtf8Boundary" {
 
     // Empty string
     try testing.expectEqual(@as(usize, 0), findUtf8Boundary("", 10));
+}
+
+test "parseIso8601ToEpoch" {
+    const testing = std.testing;
+
+    // Unix epoch
+    try testing.expectEqual(@as(?i64, 0), parseIso8601ToEpoch("1970-01-01T00:00:00Z"));
+
+    // Known timestamp: 2026-01-13T23:00:00Z
+    // Days from 1970-01-01 to 2026-01-13 = 20466 days
+    // 20466 * 86400 + 23*3600 = 1768266000
+    const expected: i64 = 1768266000;
+    try testing.expectEqual(@as(?i64, expected), parseIso8601ToEpoch("2026-01-13T23:00:00Z"));
+
+    // Invalid inputs
+    try testing.expectEqual(@as(?i64, null), parseIso8601ToEpoch("short"));
+    try testing.expectEqual(@as(?i64, null), parseIso8601ToEpoch("not-a-timestamp-!!!"));
+    try testing.expectEqual(@as(?i64, null), parseIso8601ToEpoch("2026-13-01T00:00:00Z")); // Invalid month
+    try testing.expectEqual(@as(?i64, null), parseIso8601ToEpoch("2026-01-32T00:00:00Z")); // Invalid day
 }
