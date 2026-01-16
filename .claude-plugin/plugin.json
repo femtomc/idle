@@ -1,6 +1,6 @@
 {
   "name": "alice",
-  "version": "26.1.34",
+  "version": "26.1.35",
   "description": "Quality gate for Claude Code. Use #alice to enable review. Skills: reviewing, researching, issue-tracking, technical-writing, bib-managing.",
   "author": {
     "name": "femtomc"
